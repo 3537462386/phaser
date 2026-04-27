@@ -21,7 +21,9 @@ class MenuScene extends Phaser.Scene {
 
     // 创建 DOM 元素，居中对齐 canvas
     const menu = this.add.dom(CANVAS_W / 2, CANVAS_H / 2).createFromCache('menuHTML');
-    menu.setSize(CANVAS_W, CANVAS_H);
+    menu.node.style.width = `${CANVAS_W}px`;
+    menu.node.style.height = `${CANVAS_H}px`;
+    menu.updateSize();
 
     // 处理交互
     const pveBtn = menu.getChildByID('pve-btn');

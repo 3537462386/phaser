@@ -75,8 +75,9 @@
         padding: clamp(20px, 5vw, 60px) clamp(10px, 3vw, 20px);
         position: relative;
         overflow: hidden;
-        background: transparent;
-        /* 关键：设置为透明，露出 Canvas 背景图 */
+        background:
+            linear-gradient(rgba(16, 18, 42, 0.78), rgba(16, 18, 42, 0.78)),
+            url('./assets/bg.jpg') center center / cover no-repeat;
     }
 
     /* 标题样式 */
