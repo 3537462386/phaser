@@ -20,8 +20,8 @@ class CharacterSelectScene extends Phaser.Scene {
   }
 
   create() {
-    // 创建 DOM 元素，(0,0) 为左上角与 canvas 对齐
-    const dom = this.add.dom(0, 0).createFromCache('selectHTML');
+    // 创建 DOM 元素，居中对齐 canvas
+    const dom = this.add.dom(CANVAS_W / 2, CANVAS_H / 2).createFromCache('selectHTML');
     dom.setSize(CANVAS_W, CANVAS_H);
     
     // 获取 HTML 中的元素

@@ -19,8 +19,8 @@ class MenuScene extends Phaser.Scene {
     //   this.add.image(300, 340, 'menu_bg');
     // }
 
-    // 创建 DOM 元素，(0,0) 为左上角与 canvas 对齐
-    const menu = this.add.dom(0, 0).createFromCache('menuHTML');
+    // 创建 DOM 元素，居中对齐 canvas
+    const menu = this.add.dom(CANVAS_W / 2, CANVAS_H / 2).createFromCache('menuHTML');
     menu.setSize(CANVAS_W, CANVAS_H);
 
     // 处理交互
