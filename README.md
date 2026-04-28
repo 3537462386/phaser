@@ -77,6 +77,10 @@ _checkHit(attacker, target)
 
 支持键盘/游戏手柄，自动处理移动、跳跃、防御、攻击指令。
 
+**当前操作：**
+- P1: `WASD` 移动，`J` 拳，`W+J` 升龙拳，满怒 `S+J` 必杀，`K` 踢，`F` 防御
+- P2: 方向键移动，`Num1` 拳，`↑+Num1` 升龙拳，满怒 `↓+Num1` 必杀，`Num2` 踢，`Num0` 防御
+
 **核心方法：**
 | 方法 | 说明 |
 |------|------|
@@ -117,6 +121,7 @@ attack: {
     punch: { damage: 7, knockback: 80, range: 65, rangeY: 65, ... },
     kick: { damage: 13, knockback: 150, range: 85, rangeY: 80, ... },
     rising: { damage: 18, knockback: 60, range: 70, rangeY: 160, riseVY: -600, ... },
+  super: { damage: 26, knockback: 260, range: 120, rangeY: 95, dashVx: 380, ... },
     airpunch: { ... },
     airkick: { damage: 16, knockback: 100, range: 70, rangeY: 120, ... }
 }
@@ -133,13 +138,30 @@ attack: {
 | `activeFrames` | 判定帧数 |
 | `cooldown` | 冷却时间 |
 | `hitstun` | 命中僵直时间 |
+| `dashVx` | 必杀突进速度 |
 
 ### 常量定义
 
 ```javascript
-ATTACK_TYPES = { PUNCH, KICK, RISING, AIR_PUNCH, AIR_KICK }
+ATTACK_TYPES = { PUNCH, KICK, RISING, SUPER, AIR_PUNCH, AIR_KICK }
 ATTACK_STATES = { IDLE, STARTUP, ACTIVE, RECOVERY }
 PLAYER_IDS = { P1, P2 }
+```
+
+### 怒气机制
+
+```javascript
+rage: {
+  max: 100,
+  superCost: 100,
+  onHit: 5,
+  onGetHit: 9,
+  onBlock: 4,
+  onKick: 7,
+  onRising: 12,
+  onAirHit: 8,
+  onSuper: 15
+}
 ```
 
 ## 精灵资源

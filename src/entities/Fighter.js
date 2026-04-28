@@ -17,126 +17,92 @@ class Fighter {
         this.attackState  = ATTACK_STATES.IDLE;
         this.attackType   = null;
         this.hitRegistered = false;
+        this.renderMode   = GAME_CONFIG.render.mode;
 
         // 创建物理容器
         this.container = scene.add.container(x, y);
         scene.physics.world.enable(this.container);
-        this.container.body.setSize(40, 80);
-        this.container.body.setOffset(-20, -80);
+        this.syncHitbox();
         this.container.body.setCollideWorldBounds(true);
         this.container.fighter = this;
 
-        this._buildParts();
+        this.renderer = this._createRenderer();
+        this.renderer.build();
     }
 
-    _buildParts() {
-        const pid = this.playerId; // 'p1' or 'p2'
-
-        // ── 腿部（双腿静止图，默认可见）──
-        this.legsImg = this.scene.add.image(0, -8, `${pid}_legs`);
-        this.legsImg.setDisplaySize(70, 65);
-
-        // 身体
-        this.torso = this.scene.add.image(2 * this.facing, -52, `${pid}_torso`);
-        this.torso.setDisplaySize(60, 72);
-
-        // 头部
-        this.head = this.scene.add.image(4 * this.facing, -88, `${pid}_head`);
-        this.head.setDisplaySize(58, 58);
-
-        // 手臂容器（待机状态用 arm.svg）
-        this.armContainer = this.scene.add.container(22 * this.facing, -55);
-        this.armImg = this.scene.add.image(0, 0, `${pid}_arm`);
-        this.armImg.setDisplaySize(32, 72);
-        this.armContainer.add(this.armImg);
-
-        // 踢腿容器（用 kick_leg.svg，默认隐藏）
-        this.kickLeg = this.scene.add.container(14 * this.facing, -15);
-        this.kickLegImg = this.scene.add.image(0, 0, `${pid}_kick_leg`);
-        this.kickLegImg.setDisplaySize(48, 80);
-        this.kickLeg.add(this.kickLegImg);
-        this.kickLeg.setVisible(false);
-
-        // 受击闪光（保留原有逻辑）
-        this.hitFlash = this.scene.add.rectangle(0, -40, 44, 88, 0xffffff, 0);
-
-        // 攻击时的手臂（水平出拳用）
-        this.armPunch = this.scene.add.container(18 * this.facing, -55);
-        this.armPunchImg = this.scene.add.image(0, 0, `${pid}_arm_punch`);
-        this.armPunchImg.setDisplaySize(72, 32);
-        this.armPunch.add(this.armPunchImg);
-        this.armPunch.setVisible(false);
-        this.container.add(this.armPunch);
-
-        // 镜像朝向（P2 初始面朝左）
-        if (this.facing === -1) {
-            this.legsImg.setFlipX(true);
-            this.torso.setFlipX(true);
-            this.head.setFlipX(true);
-            this.armImg.setFlipX(true);
-            this.kickLegImg.setFlipX(true);
-            this.armPunchImg.setFlipX(true);
-        }
-
-        this.container.add([
-            this.legsImg,
-            this.torso,
-            this.hitFlash,
-            this.kickLeg,
-            this.armContainer,
-            this.armPunch,
-            this.head,
-        ]);
-
-        // 兼容旧代码中对 legLeft/legRight 的引用（部分地方需要）
-        this.legLeft  = this.legsImg;
-        this.legRight = this.legsImg;
-    }
-
-    _darken(color) {
-        const r = ((color >> 16) & 0xff) * 0.6 | 0;
-        const g = ((color >> 8)  & 0xff) * 0.6 | 0;
-        const b = (color         & 0xff) * 0.6 | 0;
-        return (r << 16) | (g << 8) | b;
+    _createRenderer() {
+        return FighterRendererFactory.create(this);
     }
 
     updateFacing(facing) {
         if (this.facing === facing) return;
         this.facing = facing;
-
-        const flip = facing === -1;
-
-        // 身体部件水平翻转
-        this.legsImg.setFlipX(flip);
-        this.torso.setFlipX(flip);
-        this.head.setFlipX(flip);
-        this.armImg.setFlipX(flip);
-        this.kickLegImg.setFlipX(flip);
-
-        // 根据朝向调整各部件的水平位置（镜像对称）
-        this.armContainer.x = 22 * facing;
-        this.armPunch.x     = 18 * facing;
-        this.kickLeg.x      = 14 * facing;
-
-        // 头部微微偏移，使面向更自然
-        this.head.x = 4 * facing;
-
-        // 躯干微微扭转
-        this.torso.x = 2 * facing;
+        this.renderer.updateFacing(facing);
     }
 
     setBlockVisual(blocking) {
         this.isBlocking = blocking;
-        const tint = blocking ? COLORS.BLOCK_TINT : COLORS.NORMAL_TINT;
-        this.torso.setTint(tint);
-        this.legsImg.setTint(tint);
-        this.armImg.setTint(tint);
-        this.armPunchImg.setTint(tint);
+        this.renderer.setBlockVisual(blocking);
     }
 
     showHitFlash() {
-        this.hitFlash.setFillStyle(0xffffff, 0.75);
-        this.scene.time.delayedCall(80, () => this.hitFlash.setFillStyle(0xffffff, 0));
+        this.renderer.showHitFlash();
+    }
+
+    getEffectAnchor(name = 'hitSpark') {
+        const anchor = GAME_CONFIG.render.effectAnchors[name] || { x: 0, y: 0 };
+        return {
+            x: this.x + anchor.x,
+            y: this.y + anchor.y,
+        };
+    }
+
+    getHitReactionTargets() {
+        return this.renderer.getHitReactionTargets();
+    }
+
+    getKOTweenTarget() {
+        return this.container;
+    }
+
+    getKOFallY() {
+        return this.getEffectAnchor('ko').y;
+    }
+
+    getRenderMode() {
+        return this.renderMode;
+    }
+
+    setRenderMode(mode) {
+        this.renderMode = mode;
+        this.syncHitbox();
+    }
+
+    playAttackStartup(type) {
+        this.renderer.playAttackStartup(type);
+    }
+
+    playAttackActive(type) {
+        this.renderer.playAttackActive(type);
+    }
+
+    playAttackRecovery(type) {
+        this.renderer.playAttackRecovery(type);
+    }
+
+    updateVisualState() {
+        if (this.renderer && typeof this.renderer.syncAnimationState === 'function') {
+            this.renderer.syncAnimationState();
+        }
+    }
+
+    syncHitbox() {
+        const hitbox = GAME_CONFIG.render.hitbox;
+
+        if (!hitbox || !this.container.body) return;
+
+        this.container.body.setSize(hitbox.width, hitbox.height);
+        this.container.body.setOffset(hitbox.offsetX, hitbox.offsetY);
     }
 
     get x()    { return this.container.x; }
@@ -159,32 +125,11 @@ class Fighter {
         this.attackState = ATTACK_STATES.IDLE;
         this.attackType = null;
         this.hitRegistered = false;
-        this.torso.clearTint();
-        this.legsImg.clearTint();
-        this.armImg.clearTint();
-        this.armPunchImg.clearTint();
+        this.renderer.resetVisualState();
     }
 
     // 重置姿势
     resetPose() {
-        this.armContainer.x = 22 * this.facing;
-        this.armContainer.y = -55;
-        this.armContainer.angle = 0;
-        this.armImg.setScale(1, 1);  // 重置横向伸展
-        this.armPunch.x = 18 * this.facing;
-        this.armPunch.y = -55;
-        this.armPunch.angle = 0;
-        this.armPunch.setVisible(false);
-        this.armPunchImg.setScale(1, 1);
-        this.kickLeg.x = 14 * this.facing;
-        this.kickLeg.y = -15;
-        this.kickLeg.angle = 0;
-        this.kickLeg.setVisible(false);
-        this.kickLegImg.setScale(1, 1);  // 重置横向伸展
-        this.legsImg.setVisible(true);
-
-        // 重置朝向相关偏移
-        this.head.x = 4 * this.facing;
-        this.torso.x = 2 * this.facing;
+        this.renderer.resetPose();
     }
 }

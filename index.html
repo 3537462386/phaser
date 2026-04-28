@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>格斗游戏 - Fighting Game</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="vendor/phaser/plugins/spine4.1/SpinePlugin.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -29,8 +30,19 @@
 <body>
     <div id="game-container"></div>
     
-    <!-- 常量与配置 -->
+    <!-- 配置 -->
+    <script src="src/config/RuntimeConfig.js"></script>
+    <script src="src/config/CombatConfig.js"></script>
+    <script src="src/config/InputConfig.js"></script>
+    <script src="src/config/RenderConfig.js"></script>
+
+    <!-- 常量聚合 -->
     <script src="src/constants.js"></script>
+
+    <!-- 渲染器 -->
+    <script src="src/renderers/FighterRendererFactory.js"></script>
+    <script src="src/renderers/SvgFighterRenderer.js"></script>
+    <script src="src/renderers/SpineFighterRenderer.js"></script>
     
     <!-- 实体类 -->
     <script src="src/entities/Fighter.js"></script>

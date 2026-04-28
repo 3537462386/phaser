@@ -8,19 +8,7 @@ class FightScene extends Phaser.Scene {
     }
 
     preload() {
-        // SVG 精灵图加载配置（scale 用于放大渲染质量）
-        const svgParts = [
-            { key: 'head',      w: 80,  h: 80  },
-            { key: 'torso',     w: 80,  h: 90  },
-            { key: 'arm',       w: 40,  h: 90  },
-            { key: 'arm_punch', w: 90,  h: 40  },
-            { key: 'legs',      w: 80,  h: 80  },
-            { key: 'kick_leg',  w: 60,  h: 100 },
-        ];
-        for (const p of svgParts) {
-            this.load.svg(`p1_${p.key}`, `assets/p1/${p.key}.svg`, { width: p.w * 2, height: p.h * 2 });
-            this.load.svg(`p2_${p.key}`, `assets/p2/${p.key}.svg`, { width: p.w * 2, height: p.h * 2 });
-        }
+        FighterRendererFactory.loadAssets(this, GAME_CONFIG.render.mode);
     }
 
     create() {
@@ -49,6 +37,20 @@ class FightScene extends Phaser.Scene {
         this.roundManager.showRoundStart();
     }
 
+    getGroundY() {
+        return GAME_CONFIG.height - GAME_CONFIG.stage.groundOffset;
+    }
+
+    getSpawnY() {
+        return this.getGroundY();
+    }
+
+    getPlayerSpawnX(playerId) {
+        return playerId === PLAYER_IDS.P1
+            ? GAME_CONFIG.spawn.p1X
+            : GAME_CONFIG.width - GAME_CONFIG.spawn.p2OffsetX;
+    }
+
     // ───────── 背景 ─────────
     createBackground() {
         const g = this.add.graphics();
@@ -68,7 +70,7 @@ class FightScene extends Phaser.Scene {
 
     // ───────── 地面 ─────────
     createGround() {
-        const gY = GAME_CONFIG.height - 70;
+        const gY = this.getGroundY();
         const deco = this.add.graphics();
         deco.fillStyle(0x2a1a4a, 1);
         deco.fillRect(0, gY, GAME_CONFIG.width, GAME_CONFIG.height - gY);
@@ -92,9 +94,9 @@ class FightScene extends Phaser.Scene {
 
     // ───────── 玩家 ─────────
     createPlayers() {
-        const spawnY = GAME_CONFIG.height - 70;
-        this.fighter1 = new Fighter(this, 200, spawnY, COLORS.P1, PLAYER_IDS.P1);
-        this.fighter2 = new Fighter(this, GAME_CONFIG.width - 200, spawnY, COLORS.P2, PLAYER_IDS.P2);
+        const spawnY = this.getSpawnY();
+        this.fighter1 = new Fighter(this, this.getPlayerSpawnX(PLAYER_IDS.P1), spawnY, COLORS.P1, PLAYER_IDS.P1);
+        this.fighter2 = new Fighter(this, this.getPlayerSpawnX(PLAYER_IDS.P2), spawnY, COLORS.P2, PLAYER_IDS.P2);
         this.fighter1.updateFacing(1);
         this.fighter2.updateFacing(-1);
     }
@@ -134,12 +136,20 @@ class FightScene extends Phaser.Scene {
     // ───────── 触发攻击（状态机） ─────────
     triggerAttack(fighter, type) {
         const cfg = GAME_CONFIG.attack[type];
+        if (!cfg) return;
+
+        if (type === ATTACK_TYPES.SUPER) {
+            if (fighter.rage < GAME_CONFIG.rage.superCost) return;
+            this.spendRage(fighter, GAME_CONFIG.rage.superCost);
+        }
+
         fighter.attackState   = type + ATTACK_STATES.STARTUP;
         fighter.attackType    = type;
         fighter.hitRegistered = false;
 
         // 显示技名浮字
-        this.effectsManager.spawnSkillName(fighter.x, fighter.y - 110, type);
+        const skillAnchor = fighter.getEffectAnchor('skill');
+        this.effectsManager.spawnSkillName(skillAnchor.x, skillAnchor.y, type);
 
         // 播前摇
         this._playStartup(fighter, type);
@@ -165,141 +175,46 @@ class FightScene extends Phaser.Scene {
 
     // ─── 前摇动画 ───
     _playStartup(fighter, type) {
-        switch (type) {
-            case ATTACK_TYPES.PUNCH:
-                // 切换到水平出拳手臂，缩回准备
-                fighter.armContainer.setVisible(false);
-                fighter.armPunch.setVisible(true);
-                fighter.armPunchImg.setScale(0.1, 1);
-                break;
-
-            case ATTACK_TYPES.KICK:
-                fighter.kickLeg.setVisible(true);
-                fighter.legsImg.setVisible(false);
-                // 腿缩回准备
-                fighter.kickLegImg.setScale(0.1, 1);
-                break;
-
-            case ATTACK_TYPES.RISING:
-                // 升龙：使用垂直手臂缩回准备
-                fighter.armImg.setScale(0.1, 1);
-                break;
-
-            case ATTACK_TYPES.AIR_PUNCH:
-                // 空中出拳：切换到水平出拳手臂缩回
-                fighter.armContainer.setVisible(false);
-                fighter.armPunch.setVisible(true);
-                fighter.armPunchImg.setScale(0.1, 1);
-                break;
-
-            case ATTACK_TYPES.AIR_KICK:
-                // 空中踢腿：腿缩回
-                fighter.kickLeg.setVisible(true);
-                fighter.legsImg.setVisible(false);
-                fighter.kickLegImg.setScale(0.1, 1);
-                break;
-        }
+        fighter.playAttackStartup(type);
     }
 
     // ─── 激活帧动画 ───
     _playActive(fighter, type) {
+        fighter.playAttackActive(type);
+
         switch (type) {
             case ATTACK_TYPES.PUNCH:
-                // 横向伸展水平出拳手臂（从0到1）
-                this.tweens.add({
-                    targets: fighter.armPunchImg,
-                    scaleX: 1,
-                    duration: GAME_CONFIG.attack.punch.activeFrames * 0.5,
-                    ease: 'Power3'
-                });
-                break;
-
             case ATTACK_TYPES.KICK:
-                // 横向伸展踢腿（从0到1）
-                this.tweens.add({
-                    targets: fighter.kickLegImg,
-                    scaleX: 1,
-                    duration: GAME_CONFIG.attack.kick.activeFrames * 0.5,
-                    ease: 'Power3'
-                });
                 break;
 
             case ATTACK_TYPES.RISING:
                 // 向上冲拳 + 身体上升
                 fighter.body.setVelocityY(GAME_CONFIG.attack.rising.riseVY);
                 fighter.body.setVelocityX(60 * fighter.facing);
-                // 升龙手臂横向伸展
-                this.tweens.add({
-                    targets: fighter.armImg,
-                    scaleX: 1,
-                    duration: 200,
-                    ease: 'Power3'
-                });
                 // 升龙火焰特效
                 this.effectsManager.spawnRisingFlame(fighter);
+                break;
+
+            case ATTACK_TYPES.SUPER:
+                fighter.body.setVelocityX(GAME_CONFIG.attack.super.dashVx * fighter.facing);
+                this.effectsManager.spawnSuperBurst(fighter);
                 break;
 
             case ATTACK_TYPES.AIR_PUNCH:
                 // 向前猛冲拳
                 fighter.body.setVelocityX(fighter.body.velocity.x + 120 * fighter.facing);
-                this.tweens.add({
-                    targets: fighter.armPunchImg,
-                    scaleX: 1,
-                    duration: GAME_CONFIG.attack.airpunch.activeFrames * 0.45,
-                    ease: 'Power3'
-                });
                 break;
 
             case ATTACK_TYPES.AIR_KICK:
                 // 腿向下猛踹
                 fighter.body.setVelocityY(200); // 下压加速
-                this.tweens.add({
-                    targets: fighter.kickLegImg,
-                    scaleX: 1,
-                    duration: GAME_CONFIG.attack.airkick.activeFrames * 0.45,
-                    ease: 'Power3'
-                });
                 break;
         }
     }
 
     // ─── 收招动画 ───
     _playRecovery(fighter, type) {
-        switch (type) {
-            case ATTACK_TYPES.PUNCH:
-            case ATTACK_TYPES.AIR_PUNCH:
-                this.tweens.add({
-                    targets: fighter.armPunchImg,
-                    scaleX: 1,
-                    duration: 130, ease: 'Power1',
-                    onComplete: () => {
-                        fighter.armPunch.setVisible(false);
-                        fighter.armContainer.setVisible(true);
-                    }
-                });
-                break;
-
-            case ATTACK_TYPES.KICK:
-            case ATTACK_TYPES.AIR_KICK:
-                this.tweens.add({
-                    targets: fighter.kickLegImg,
-                    scaleX: 1,
-                    duration: 160, ease: 'Power1',
-                    onComplete: () => {
-                        fighter.kickLeg.setVisible(false);
-                        fighter.legsImg.setVisible(true);
-                    }
-                });
-                break;
-
-            case ATTACK_TYPES.RISING:
-                this.tweens.add({
-                    targets: fighter.armImg,
-                    scaleX: 1,
-                    duration: 200, ease: 'Power1'
-                });
-                break;
-        }
+        fighter.playAttackRecovery(type);
     }
 
     // ───────── 主循环 ─────────
@@ -309,6 +224,8 @@ class FightScene extends Phaser.Scene {
         this.inputManager.processMovement(this.fighter1, this.inputManager.getP1Keys());
         this.inputManager.processMovement(this.fighter2, this.inputManager.getP2Keys());
         this.autoFacing();
+        this.fighter1.updateVisualState();
+        this.fighter2.updateVisualState();
         this.checkAllAttacks();
         this.uiManager.refresh(this.fighter1, this.fighter2);
     }
@@ -361,7 +278,8 @@ class FightScene extends Phaser.Scene {
         if (target.isBlocking && target.isOnGround()) {
             dmg = Math.max(1, Math.floor(dmg * GAME_CONFIG.blockReduction));
             this.addRage(target, GAME_CONFIG.rage.onBlock);
-            this.effectsManager.spawnBlockEffect(target.x, target.y - 50);
+            const blockAnchor = target.getEffectAnchor('block');
+            this.effectsManager.spawnBlockEffect(blockAnchor.x, blockAnchor.y);
         } else {
             target.isHit = true;
             target.attackState  = ATTACK_STATES.IDLE;
@@ -373,6 +291,7 @@ class FightScene extends Phaser.Scene {
             if (type === ATTACK_TYPES.AIR_KICK)  kbY = 250;   // 飞脚向下砸
             if (type === ATTACK_TYPES.KICK)     kbY = -200;
             if (type === ATTACK_TYPES.RISING)   kbY = -350;
+            if (type === ATTACK_TYPES.SUPER)    kbY = -260;
             if (type === ATTACK_TYPES.AIR_PUNCH) kbY = -80;
 
             target.body.setVelocityX(kbX);
@@ -382,7 +301,8 @@ class FightScene extends Phaser.Scene {
             this.effectsManager.playHitstunAnim(target, type);
 
             // 命中特效
-            this.effectsManager.spawnHitSpark(target.x, target.y - 50, cfg.hitColor, type);
+            const hitSparkAnchor = target.getEffectAnchor('hitSpark');
+            this.effectsManager.spawnHitSpark(hitSparkAnchor.x, hitSparkAnchor.y, cfg.hitColor, type);
 
             this.time.delayedCall(cfg.hitstun, () => {
                 target.isHit = false;
@@ -395,18 +315,24 @@ class FightScene extends Phaser.Scene {
         target.health = Math.max(0, target.health - dmg);
 
         // 怒气
-        const rageAmt = (type === ATTACK_TYPES.RISING) ? GAME_CONFIG.rage.onRising
+        const rageAmt = (type === ATTACK_TYPES.SUPER) ? GAME_CONFIG.rage.onSuper
+                  : (type === ATTACK_TYPES.RISING) ? GAME_CONFIG.rage.onRising
                       : (type.startsWith('air')) ? GAME_CONFIG.rage.onAirHit
                       : (type === ATTACK_TYPES.KICK) ? GAME_CONFIG.rage.onKick
                       : GAME_CONFIG.rage.onHit;
         this.addRage(attacker, rageAmt);
         this.addRage(target, GAME_CONFIG.rage.onGetHit);
 
-        this.effectsManager.spawnDamageNumber(target.x, target.y - 95, dmg, type, target.isBlocking && target.isOnGround());
+        const damageAnchor = target.getEffectAnchor('damage');
+        this.effectsManager.spawnDamageNumber(damageAnchor.x, damageAnchor.y, dmg, type, target.isBlocking && target.isOnGround());
     }
 
     addRage(fighter, amt) {
-        fighter.rage = Math.min(100, fighter.rage + amt);
+        fighter.rage = Math.min(GAME_CONFIG.rage.max, fighter.rage + amt);
+    }
+
+    spendRage(fighter, amt) {
+        fighter.rage = Math.max(0, fighter.rage - amt);
     }
 
     // ───────── 回合回调 ─────────
@@ -432,7 +358,7 @@ class FightScene extends Phaser.Scene {
 
     // ───────── 重置角色 ─────────
     resetFighter(fighter, x) {
-        fighter.reset(x, GAME_CONFIG.height - 70);
+        fighter.reset(x, this.getSpawnY());
         fighter.resetPose();
     }
 }

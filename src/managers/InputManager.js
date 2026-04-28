@@ -17,57 +17,43 @@ class InputManager {
         this.setupAttackListeners();
     }
 
+    _createKeyState(playerId) {
+        const bindings = GAME_CONFIG.input.players[playerId];
+        const keyState = {};
+
+        for (const [action, binding] of Object.entries(bindings)) {
+            keyState[action] = this.scene.input.keyboard.addKey(binding);
+        }
+
+        return keyState;
+    }
+
+    _registerAttackListener(playerId, action, callbackName) {
+        const eventName = GAME_CONFIG.input.attackEvents[playerId][action];
+
+        this.scene.input.keyboard.on(eventName, () => {
+            if (this.attackCallbacks[callbackName]) {
+                this.attackCallbacks[callbackName]();
+            }
+        });
+    }
+
     // P1 按键配置 (WASD + J/K/F)
     setupP1Keys() {
-        this.keysP1 = {
-            left:  this.scene.input.keyboard.addKey('A'),
-            right: this.scene.input.keyboard.addKey('D'),
-            up:    this.scene.input.keyboard.addKey('W'),
-            down:  this.scene.input.keyboard.addKey('S'),
-            punch: this.scene.input.keyboard.addKey('J'),
-            kick:  this.scene.input.keyboard.addKey('K'),
-            block: this.scene.input.keyboard.addKey('F'),
-        };
+        this.keysP1 = this._createKeyState(PLAYER_IDS.P1);
     }
 
     // P2 按键配置 (方向键 + 小键盘)
     setupP2Keys() {
-        this.keysP2 = {
-            left:  this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
-            right: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT),
-            up:    this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
-            down:  this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN),
-            punch: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ONE),
-            kick:  this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_TWO),
-            block: this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.NUMPAD_ZERO),
-        };
+        this.keysP2 = this._createKeyState(PLAYER_IDS.P2);
     }
 
     // 设置攻击监听
     setupAttackListeners() {
-        // P1 攻击键
-        this.scene.input.keyboard.on('keydown-J', () => {
-            if (this.attackCallbacks.onP1Punch) {
-                this.attackCallbacks.onP1Punch();
-            }
-        });
-        this.scene.input.keyboard.on('keydown-K', () => {
-            if (this.attackCallbacks.onP1Kick) {
-                this.attackCallbacks.onP1Kick();
-            }
-        });
-
-        // P2 攻击键
-        this.scene.input.keyboard.on('keydown-NUMPAD_ONE', () => {
-            if (this.attackCallbacks.onP2Punch) {
-                this.attackCallbacks.onP2Punch();
-            }
-        });
-        this.scene.input.keyboard.on('keydown-NUMPAD_TWO', () => {
-            if (this.attackCallbacks.onP2Kick) {
-                this.attackCallbacks.onP2Kick();
-            }
-        });
+        this._registerAttackListener(PLAYER_IDS.P1, 'punch', 'onP1Punch');
+        this._registerAttackListener(PLAYER_IDS.P1, 'kick', 'onP1Kick');
+        this._registerAttackListener(PLAYER_IDS.P2, 'punch', 'onP2Punch');
+        this._registerAttackListener(PLAYER_IDS.P2, 'kick', 'onP2Kick');
     }
 
     // 注册攻击回调
@@ -100,7 +86,9 @@ class InputManager {
 
         let type;
         if (key === ATTACK_TYPES.PUNCH) {
-            if (onGround && keys.up.isDown) {
+            if (onGround && GAME_CONFIG.rage.superEnabled && keys.down.isDown && fighter.rage >= GAME_CONFIG.rage.superCost) {
+                type = ATTACK_TYPES.SUPER;       // 满怒必杀
+            } else if (onGround && keys.up.isDown) {
                 type = ATTACK_TYPES.RISING;      // 升龙拳
             } else if (onGround) {
                 type = ATTACK_TYPES.PUNCH;       // 普通拳

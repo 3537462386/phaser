@@ -157,8 +157,8 @@ class RoundManager {
         this.gameState.timeLeft = GAME_CONFIG.roundTime;
         if (this.timerEvent) this.timerEvent.remove();
         // 重置角色
-        this.scene.resetFighter(this.scene.fighter1, 200);
-        this.scene.resetFighter(this.scene.fighter2, GAME_CONFIG.width - 200);
+        this.scene.resetFighter(this.scene.fighter1, this.scene.getPlayerSpawnX(PLAYER_IDS.P1));
+        this.scene.resetFighter(this.scene.fighter2, this.scene.getPlayerSpawnX(PLAYER_IDS.P2));
         if (this.onRoundStart) this.onRoundStart('reset');
         this.showRoundStart();
     }

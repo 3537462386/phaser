@@ -27,7 +27,7 @@ class UIManager {
         this.scene.add.text(cx - gap - barW - 8, 18 + barH / 2, 'P1', { fontSize: '20px', fontStyle: 'bold', color: '#ff3355' }).setOrigin(1, 0.5);
         this.scene.add.text(cx + gap + barW + 8, 18 + barH / 2, 'P2', { fontSize: '20px', fontStyle: 'bold', color: '#3388ff' }).setOrigin(0, 0.5);
 
-        this.timerText = this.scene.add.text(cx, 22, '60', {
+        this.timerText = this.scene.add.text(cx, 22, GAME_CONFIG.roundTime.toString(), {
             fontSize: '38px', fontStyle: 'bold',
             color: '#ffffff', stroke: '#000000', strokeThickness: 5
         }).setOrigin(0.5, 0);
@@ -49,9 +49,13 @@ class UIManager {
         this.ui_p2rage = this._makeRageBar(GAME_CONFIG.width - 28 - 280,  rageY, 280, 16, 0xffaa00, 'P2 怒气', 'right');
 
         this.scene.add.text(cx, GAME_CONFIG.height - 18,
-            'P1: WASD移动 · J拳 · W+J升龙拳 · K踢 · F防御 · 空中J飞拳 · 空中K飞脚    P2: 方向键 · Num1拳 · ↑+Num1升龙 · Num2踢 · Num0防御', {
+            this._buildControlHint(), {
             fontSize: '10px', color: '#665588', align: 'center'
         }).setOrigin(0.5, 1);
+    }
+
+    _buildControlHint() {
+        return `P1: ${GAME_CONFIG.input.helpText[PLAYER_IDS.P1]}    P2: ${GAME_CONFIG.input.helpText[PLAYER_IDS.P2]}`;
     }
 
     _makeBar(x, y, w, h, color, align) {
@@ -124,9 +128,9 @@ class UIManager {
     }
 
     _updateRageBar(bar, val) {
-        const fw = Math.max(0, (bar.w - 4) * (val / 100));
+        const fw = Math.max(0, (bar.w - 4) * (val / GAME_CONFIG.rage.max));
         bar.fill.clear();
-        bar.fill.fillStyle(val >= 100 ? 0xffffff : bar.color, val >= 100 ? 0.85 : 1);
+        bar.fill.fillStyle(val >= GAME_CONFIG.rage.max ? 0xffffff : bar.color, val >= GAME_CONFIG.rage.max ? 0.85 : 1);
         bar.fill.fillRoundedRect(2, 2, fw, bar.h - 4, 2);
     }
 
