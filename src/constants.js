@@ -12,7 +12,6 @@ const GAME_CONFIG = {
         mode: RENDER_CONFIG.mode,
         effectAnchors: RENDER_CONFIG.effectAnchors,
         hitbox: RENDER_CONFIG.hitbox,
-        svg: RENDER_CONFIG.svg,
         spine: RENDER_CONFIG.spine,
     }
 };

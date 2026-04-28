@@ -164,19 +164,17 @@ rage: {
 }
 ```
 
-## 精灵资源
+## 角色资源
 
-角色使用 SVG 矢量图，加载时放大 2 倍保证清晰度：
+角色现在只使用 Spine 资源，当前最小运行集位于 `assets/spine/spineboy/`：
 
-| 部件 | 文件名 | 尺寸 |
+| 资源 | 文件名 | 说明 |
 |------|--------|------|
-| 头部 | `head.svg` | 80x80 |
-| 身体 | `torso.svg` | 80x90 |
-| 手臂 | `arm.svg` | 40x90 |
-| 站立腿 | `legs.svg` | 80x80 |
-| 踢腿 | `kick_leg.svg` | 60x100 |
+| Skeleton 数据 | `spineboy-pro.json` | 骨骼、插槽、动画定义 |
+| Atlas | `spineboy-pma.atlas` | 贴图集索引 |
+| Texture | `spineboy-pma.png` | 贴图内容 |
 
-资源路径：`assets/p1/` 和 `assets/p2/` 分别存放两名玩家的素材。
+资源映射与动画别名配置在 `src/config/RenderConfig.js`，后续替换为正式角色时优先改这里，不要把资源名散落到场景逻辑里。
 
 ## 运行方式
 
@@ -193,7 +191,7 @@ python -m http.server 8080
 
 1. 在 `constants.js` 的 `attack` 对象添加配置
 2. 在 `ATTACK_TYPES` 添加类型常量
-3. 在 `FightScene._playStartup/_playActive/_playRecovery` 添加对应动画
+3. 在 `src/config/RenderConfig.js` 的 Spine 动画映射里补充对应动作别名
 
 ### 添加新特效
 

@@ -14,13 +14,13 @@ See [README.md](README.md) for the full gameplay and module overview. Keep this 
 - There is no build step and no automated test suite in the repo.
 - Run the game through a local HTTP server, not `file://`. Use `python -m http.server 8080` or `npx serve .` from the repo root.
 - Phaser is loaded from a CDN in [index.html](index.html), so offline validation can fail even when local code is correct.
-- If you change assets, regenerate sprite files with `python assets/gen_sprites.py` when needed.
+- Spine runtime assets must keep the `.json`, `.atlas`, and texture files in sync when replaced.
 
 ## Architecture
 
 - [index.html](index.html) script order is part of the runtime contract: config -> constants -> renderers -> entities -> managers -> scene -> main. Do not introduce imports/exports or reorder scripts unless you also update the loading model.
 - [src/main.js](src/main.js) creates the Phaser game and boots `FightScene`.
-- [src/renderers](src/renderers) contains render-mode specific fighter implementations and the renderer factory; add future Spine rendering here instead of growing `FightScene`.
+- [src/renderers](src/renderers) contains the Spine fighter renderer and the renderer factory; extend Spine-facing helpers here instead of growing `FightScene`.
 - [src/scenes/FightScene.js](src/scenes/FightScene.js) coordinates combat flow, hit checks, and manager collaboration.
 - [src/managers](src/managers) contains the active input, UI, effects, and round managers.
 
@@ -36,4 +36,4 @@ See [README.md](README.md) for the full gameplay and module overview. Keep this 
 - When extending combat or rendering behavior, add or reuse stable Fighter-facing interfaces instead of directly growing `FightScene` switch blocks around specific body parts.
 - Existing docs, comments, and most user-facing text are primarily Chinese; preserve established gameplay terms when editing content.
 - Keep changes compatible with plain browser JavaScript and existing global names such as `GAME_CONFIG`, `ATTACK_TYPES`, and `FightScene`.
-- Asset paths assume the repo root is the server root, for example `assets/p1/head.svg`.
+- Asset paths assume the repo root is the server root, for example `assets/spine/spineboy/spineboy-pro.json`.

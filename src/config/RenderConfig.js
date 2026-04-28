@@ -29,20 +29,6 @@ const RENDER_CONFIG = {
         offsetX: -20,
         offsetY: -80,
     },
-    svg: {
-        parts: [
-            { key: 'head', w: 80, h: 80 },
-            { key: 'torso', w: 80, h: 90 },
-            { key: 'arm', w: 40, h: 90 },
-            { key: 'arm_punch', w: 90, h: 40 },
-            { key: 'legs', w: 80, h: 80 },
-            { key: 'kick_leg', w: 60, h: 100 },
-        ],
-        assetRoots: {
-            p1: 'assets/p1',
-            p2: 'assets/p2',
-        }
-    },
     spine: {
         enabled: true,
         pluginKey: 'SpinePlugin',
