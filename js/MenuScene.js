@@ -80,7 +80,11 @@ class MenuScene extends Phaser.Scene {
             this.scene.start('GameScene');
         });
 
-        this.createMenuItem(cx, menuStartY + btnGap * 2, btnWidth, btnHeight, '游戏设置', () => {
+        this.createMenuItem(cx, menuStartY + btnGap * 2, btnWidth, btnHeight, '暗棋对战', () => {
+            this.scene.start('DarkChessScene');
+        });
+
+        this.createMenuItem(cx, menuStartY + btnGap * 3, btnWidth, btnHeight, '游戏设置', () => {
             this.toggleSettings();
         });
 
