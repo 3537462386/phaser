@@ -14,7 +14,7 @@ class MenuScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         const scaleFactor = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
-        const isMobile = width < 450;
+        const isMobile = com.isMobileViewport();
 
         // 绘制像素风格背景
         this.drawPixelBackground();
@@ -34,11 +34,10 @@ class MenuScene extends Phaser.Scene {
         const cx = width / 2;
 
         // 响应式尺寸
-        const fontSize = Math.round(isMobile ? 18 : 22 * scaleFactor);
-        const titleSize = Math.round(isMobile ? 26 : 34 * scaleFactor);
-        const btnWidth = Math.min(width * 0.85, isMobile ? 240 : 280);
-        const btnHeight = isMobile ? 46 : 50;
-        const btnGap = isMobile ? height * 0.12 : height * 0.11;
+        const titleSize = Math.round(isMobile ? 34 : 34 * scaleFactor);
+        const btnWidth = Math.min(width * 0.86, isMobile ? 330 : 300);
+        const btnHeight = isMobile ? 58 : 52;
+        const btnGap = isMobile ? 68 : height * 0.11;
 
         // === 装饰性像素元素 ===
         
@@ -46,9 +45,9 @@ class MenuScene extends Phaser.Scene {
         this.drawCornerDecor(width, height, isMobile ? 12 : 20);
         
         // 标题区域背景
-        const titleBgY = isMobile ? height * 0.14 : height * 0.16;
-        const titleBgH = isMobile ? 60 : 70;
-        const titleBg = this.add.rectangle(cx, titleBgY, btnWidth * 1.2, titleBgH, 0x1a1208, 0.6);
+        const titleBgY = isMobile ? height * 0.13 : height * 0.16;
+        const titleBgH = isMobile ? 74 : 70;
+        const titleBg = this.add.rectangle(cx, titleBgY, btnWidth * 1.08, titleBgH, 0x1a1208, 0.72);
         
         // 装饰性分隔线（像素风格）
         const lineY = isMobile ? height * 0.28 : height * 0.26;
@@ -59,7 +58,7 @@ class MenuScene extends Phaser.Scene {
             fontSize: titleSize + 'px',
             color: '#f0d9b5',
             fontStyle: 'bold',
-            fontFamily: 'Zpix, monospace',
+            fontFamily: com.pixelFont,
             stroke: '#3d2510',
             strokeThickness: 4
         }).setOrigin(0.5);
@@ -67,8 +66,15 @@ class MenuScene extends Phaser.Scene {
         // 标题下方小装饰
         this.drawTitleDecor(cx, titleBgY + titleBgH/2 + 8, isMobile);
 
+        this.add.text(cx, titleBgY + (isMobile ? 28 : 30), '象棋 / 暗棋', {
+            fontSize: isMobile ? '13px' : '14px',
+            color: '#d4a355',
+            fontFamily: com.pixelFont,
+            resolution: 2
+        }).setOrigin(0.5);
+
         // 菜单选项
-        const menuStartY = isMobile ? height * 0.40 : height * 0.42;
+        const menuStartY = isMobile ? height * 0.37 : height * 0.42;
         
         this.createMenuItem(cx, menuStartY, btnWidth, btnHeight, '玩家对战电脑', () => {
             play.mode = 'player_vs_ai';
@@ -156,7 +162,7 @@ class MenuScene extends Phaser.Scene {
     drawPixelBackground() {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
-        const isMobile = width < 450;
+        const isMobile = com.isMobileViewport();
 
         const graphics = this.add.graphics();
         const tileSize = isMobile ? 16 : 20;
@@ -192,10 +198,14 @@ class MenuScene extends Phaser.Scene {
     createMenuItem(x, y, w, h, text, callback) {
         const bg = this.add.rectangle(x, y, w, h, 0x4a3728)
             .setInteractive({ useHandCursor: true });
+        bg.setDepth(0.5);
 
-        // 像素边框效果（初始隐藏）
+        // 阴影和像素边框效果
+        const shadow = this.add.rectangle(x + 4, y + 4, w, h, 0x1a1208, 0.65);
+        shadow.setDepth(0);
+
         const borderG = this.add.graphics();
-        borderG.lineStyle(2, 0xd4a355, 0);
+        borderG.lineStyle(2, 0xd4a355, 0.35);
         borderG.strokeRect(x - w/2 + 2, y - h/2 + 2, w - 4, h - 4);
         borderG.setDepth(1);
 
@@ -204,6 +214,9 @@ class MenuScene extends Phaser.Scene {
         highlight.fillStyle(0xf0d9b5, 0.05);
         highlight.fillRect(x - w/2 + 4, y - h/2 + 4, w - 8, 4);
         highlight.setDepth(1);
+
+        const notch = this.add.rectangle(x - w/2 + 12, y, 5, h - 18, 0xd4a355, 0.55);
+        notch.setDepth(1);
 
         bg.on('pointerover', () => {
             bg.setFillStyle(0x5c4a38);
@@ -215,7 +228,7 @@ class MenuScene extends Phaser.Scene {
         bg.on('pointerout', () => {
             bg.setFillStyle(0x4a3728);
             borderG.clear();
-            borderG.lineStyle(2, 0xd4a355, 0);
+            borderG.lineStyle(2, 0xd4a355, 0.35);
             borderG.strokeRect(x - w/2 + 2, y - h/2 + 2, w - 4, h - 4);
         });
 
@@ -228,9 +241,10 @@ class MenuScene extends Phaser.Scene {
         });
 
         this.add.text(x, y, text, {
-            fontSize: '20px',
+            fontSize: (h >= 56 ? '20px' : '19px'),
             color: '#f0d9b5',
-            fontFamily: 'Zpix, monospace'
+            fontFamily: com.pixelFont,
+            resolution: 2
         }).setOrigin(0.5).setDepth(2);
     }
 
@@ -240,77 +254,70 @@ class MenuScene extends Phaser.Scene {
         const height = this.cameras.main.height;
         const cx = width / 2;
 
-        const panelW = Math.min(width * 0.9, isMobile ? 280 : 320);
-        const panelH = isMobile ? 100 : 120;
-        const panelY = isMobile ? height * 0.68 : height * 0.72;
+        const panelW = Math.min(width * 0.9, isMobile ? 360 : 340);
+        const panelH = isMobile ? 156 : 136;
+        const panelY = isMobile ? height * 0.78 : height * 0.75;
 
         // 面板背景（带像素边框）
         const bg = this.add.rectangle(cx, panelY, panelW, panelH, 0x1a1a1a, 0.95);
         const panelBorder = this.add.graphics();
-        panelBorder.lineStyle(2, 0x5c3d2e, 0.6);
+        panelBorder.lineStyle(2, 0xd4a355, 0.55);
         panelBorder.strokeRect(cx - panelW/2, panelY - panelH/2, panelW, panelH);
 
-        const fontSize = isMobile ? '14px' : '16px';
-        const btnFontSize = isMobile ? '14px' : '16px';
-        const diffY = panelY - panelH * 0.28;
-        const btnY = panelY - panelH * 0.05;
-        const volY = panelY + panelH * 0.28;
+        const fontSize = isMobile ? '15px' : '16px';
+        const diffY = panelY - panelH * 0.31;
+        const btnY = panelY - panelH * 0.02;
+        const volY = panelY + panelH * 0.30;
 
         // 难度设置
-        const diffText = this.add.text(cx, diffY, '难度: ' + play.level.toUpperCase(), {
-            fontSize: fontSize, color: '#aaaaaa', fontFamily: 'Zpix, monospace'
+        const diffText = this.add.text(cx, diffY, '难度  ' + play.level.toUpperCase(), {
+            fontSize: fontSize, color: '#f0d9b5', fontFamily: com.pixelFont, resolution: 2
         }).setOrigin(0.5);
 
-        const btnGap = isMobile ? 55 : 70;
-        const btnEasy   = this.add.text(cx - btnGap, btnY, '[简单]', { fontSize: btnFontSize, color: play.level === 'simple' ? '#ffdd00' : '#888888', fontFamily: 'Zpix, monospace' })
-            .setOrigin(0.5).setInteractive().on('pointerdown', () => this.setLevel('simple'));
-        const btnNormal = this.add.text(cx, btnY, '[普通]', { fontSize: btnFontSize, color: play.level === 'normal' ? '#ffdd00' : '#888888', fontFamily: 'Zpix, monospace' })
-            .setOrigin(0.5).setInteractive().on('pointerdown', () => this.setLevel('normal'));
-        const btnHard   = this.add.text(cx + btnGap, btnY, '[困难]', { fontSize: btnFontSize, color: play.level === 'hard' ? '#ffdd00' : '#888888', fontFamily: 'Zpix, monospace' })
-            .setOrigin(0.5).setInteractive().on('pointerdown', () => this.setLevel('hard'));
+        const btnW = isMobile ? 92 : 82;
+        const btnH = isMobile ? 38 : 34;
+        const btnGap = isMobile ? 104 : 94;
+        const btnEasy   = this.createSettingButton(cx - btnGap, btnY, btnW, btnH, '简单', play.level === 'simple', () => this.setLevel('simple'));
+        const btnNormal = this.createSettingButton(cx, btnY, btnW, btnH, '普通', play.level === 'normal', () => this.setLevel('normal'));
+        const btnHard   = this.createSettingButton(cx + btnGap, btnY, btnW, btnH, '困难', play.level === 'hard', () => this.setLevel('hard'));
 
-        if (isMobile) {
-            bg.setSize(panelW, panelH * 0.55);
-        } else {
-            // 音量设置标签
-            const volLabel = this.add.text(cx - 100, volY, '音量:', {
-                fontSize: fontSize, color: '#888888', fontFamily: 'Zpix, monospace'
-            }).setOrigin(0, 0.5);
+        const muteBtn = this.createSettingButton(cx, volY, isMobile ? 132 : 118, isMobile ? 36 : 32, audioConfig.muted ? '开启声音' : '静音', audioConfig.muted, () => {
+            audioConfig.muted = !audioConfig.muted;
+            const bgm = this.sound.get('bgm');
+            if (bgm) bgm.setVolume(audioConfig.muted ? 0 : audioConfig.bgmVolume);
+            this.scene.restart();
+        });
 
-            // 滑条轨道（像素风格）
-            const trackW = 120, trackX = cx - 30, trackY = volY;
-            const track = this.add.rectangle(trackX, trackY, trackW, 6, 0x3d2a1a).setOrigin(0, 0.5);
-
-            // 滑条填充
-            const fill = this.add.rectangle(trackX, trackY, trackW * audioConfig.bgmVolume, 6, 0xd4a355).setOrigin(0, 0.5);
-
-            // 滑块手柄（像素方块）
-            const knobX = trackX + trackW * audioConfig.bgmVolume;
-            const knob = this.add.rectangle(knobX, trackY, 14, 14, 0xf0d9b5)
-                .setInteractive({ useHandCursor: true, draggable: true });
-
-            // 音量百分比
-            const volNum = this.add.text(trackX + trackW + 16, trackY, Math.round(audioConfig.bgmVolume * 100) + '%', {
-                fontSize: '14px', color: '#cccccc', fontFamily: 'Zpix, monospace'
-            }).setOrigin(0, 0.5);
-
-            knob.on('drag', (pointer, dragX) => {
-                const clampedX = Phaser.Math.Clamp(dragX, trackX, trackX + trackW);
-                const vol = (clampedX - trackX) / trackW;
-                knob.setPosition(clampedX, trackY);
-                fill.setSize(clampedX - trackX, 6);
-                audioConfig.bgmVolume = vol;
-                audioConfig.muted = false;
-                volNum.setText(Math.round(vol * 100) + '%');
-                const bgm = this.sound.get('bgm');
-                if (bgm) bgm.setVolume(vol);
-            });
-
-            this.settingsGroup.addMultiple([volLabel, track, fill, knob, volNum]);
-        }
-
-        this.settingsGroup.addMultiple([bg, panelBorder, diffText, btnEasy, btnNormal, btnHard]);
+        this.settingsGroup.addMultiple([bg, panelBorder, diffText, ...btnEasy, ...btnNormal, ...btnHard, ...muteBtn]);
         this.settingsGroup.setVisible(false);
+    }
+
+    createSettingButton(x, y, w, h, label, active, callback) {
+        const bg = this.add.rectangle(x, y, w, h, active ? 0x6b4a24 : 0x3a2a1e)
+            .setInteractive({ useHandCursor: true });
+        const border = this.add.graphics();
+        const draw = (alpha) => {
+            border.clear();
+            border.lineStyle(2, active ? 0xffdd66 : 0x8b7355, alpha);
+            border.strokeRect(x - w / 2, y - h / 2, w, h);
+        };
+        draw(active ? 0.95 : 0.55);
+        const text = this.add.text(x, y, label, {
+            fontSize: h > 34 ? '15px' : '14px',
+            color: active ? '#ffdd66' : '#d7c3a1',
+            fontFamily: com.pixelFont,
+            resolution: 2
+        }).setOrigin(0.5);
+        bg.on('pointerover', () => {
+            bg.setFillStyle(active ? 0x765428 : 0x4a3728);
+            draw(0.95);
+        });
+        bg.on('pointerout', () => {
+            bg.setFillStyle(active ? 0x6b4a24 : 0x3a2a1e);
+            draw(active ? 0.95 : 0.55);
+        });
+        bg.on('pointerdown', callback);
+        return [bg, border, text];
     }
 
     toggleSettings() {

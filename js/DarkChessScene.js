@@ -25,7 +25,9 @@ class DarkChessScene extends Phaser.Scene {
     static RANK = { j: 7, c: 6, m: 5, p: 4, x: 3, s: 2, z: 1 };
 
     create() {
-        this.isMobile = this.cameras.main.width < 450;
+        this.isMobile = com.isMobileViewport();
+        this.CS = this.isMobile ? 56 : 58;
+        this.PAD = this.isMobile ? 16 : 18;
         this._gameOver = false;
         this._moving   = false;
         this.firstSide = null;   // 先翻者阵营 'red'|'black'
@@ -144,7 +146,7 @@ class DarkChessScene extends Phaser.Scene {
         this.add.text(W / 2, oy - PAD - 26, '暗  棋', {
             fontSize  : this.isMobile ? '20px' : '24px',
             color     : '#f0d9b5',
-            fontFamily: "'Zpix', monospace",
+            fontFamily: com.pixelFont,
             fontStyle : 'bold',
             resolution: 2
         }).setOrigin(0.5);
@@ -153,7 +155,7 @@ class DarkChessScene extends Phaser.Scene {
         this.turnText = this.add.text(W / 2, oy + ROWS * CS + PAD + 18, '点击棋子开始翻牌', {
             fontSize  : this.isMobile ? '14px' : '15px',
             color     : '#f0d9b5',
-            fontFamily: "'Zpix', monospace",
+            fontFamily: com.pixelFont,
             resolution: 2
         }).setOrigin(0.5).setDepth(5);
     }
@@ -219,14 +221,14 @@ class DarkChessScene extends Phaser.Scene {
         const txt = this.add.text(0, -2, label, {
             fontSize      : Math.floor(sz * 0.42) + 'px',
             color         : textColor,
-            fontFamily    : "'Zpix', monospace",
+            fontFamily    : com.pixelFont,
             fontStyle     : 'bold',
             stroke        : textColor,
             strokeThickness: 0.5,
             resolution    : 2
         }).setOrigin(0.5);
 
-        const hitSz = this.isMobile ? Math.max(sz, CS * 0.9) : sz;
+        const hitSz = this.isMobile ? Math.max(sz, this.CS) : Math.max(sz, this.CS * 0.92);
         const container = this.add.container(cx, cy, [img, txt]);
         container.setSize(hitSz, hitSz).setInteractive({ useHandCursor: true });
         container.on('pointerdown', () => this.onCellClick(col, row));
@@ -255,9 +257,10 @@ class DarkChessScene extends Phaser.Scene {
         this.getEmptyMoves(col, row).forEach(([tc, tr]) => {
             const hx = ox + tc * CS + CS / 2;
             const hy = oy + tr * CS + CS / 2;
-            const ring = this.add.arc(hx, hy, 8, 0, 360, false, 0x00e000, 0).setStrokeStyle(2, 0x00e000, 0.7).setDepth(4);
-            const dot  = this.add.circle(hx, hy, 4, 0x00e000, 0.9).setDepth(4);
-            const zone = this.add.zone(hx, hy, CS, CS).setInteractive().setDepth(4);
+            const ringR = this.isMobile ? 10 : 8;
+            const ring = this.add.arc(hx, hy, ringR, 0, 360, false, 0x00e000, 0).setStrokeStyle(2, 0x00e000, 0.7).setDepth(4);
+            const dot  = this.add.circle(hx, hy, this.isMobile ? 5 : 4, 0x00e000, 0.9).setDepth(4);
+            const zone = this.add.zone(hx, hy, CS, CS).setInteractive({ useHandCursor: true }).setDepth(4);
             zone.on('pointerdown', () => this.onCellClick(tc, tr));
             this.hintObjects.push(ring, dot, zone);
         });
@@ -288,7 +291,6 @@ class DarkChessScene extends Phaser.Scene {
                 return;
             }
             // 翻牌
-            if (this.currentTurn && this.currentTurn !== cell.side) return; // 不是自己的回合不能翻别人的牌（暗棋规则：可翻任意未翻牌）
             this.flipPiece(col, row, cell);
             return;
         }
@@ -487,7 +489,7 @@ class DarkChessScene extends Phaser.Scene {
         const lbl = entry ? (cell.side==='red' ? entry.red : entry.black) : '?';
         const tmpTxt = this.add.text(fromX, fromY - 2, lbl, {
             fontSize: Math.floor(sz*0.42)+'px', color: cell.side==='red'?'#ff3333':'#111111',
-            fontFamily:"'Zpix',monospace", fontStyle:'bold', resolution:2
+            fontFamily: com.pixelFont, fontStyle:'bold', resolution:2
         }).setOrigin(0.5).setDepth(11);
 
         this.tweens.add({
@@ -611,7 +613,7 @@ class DarkChessScene extends Phaser.Scene {
         this.add.text(W/2, H/2 - panelH/2 + (this.isMobile ? 36 : 44), msg, {
             fontSize  : this.isMobile ? '15px' : '17px',
             color     : '#f0d9b5',
-            fontFamily: "'Zpix', monospace",
+            fontFamily: com.pixelFont,
             wordWrap  : { width: panelW - 32 },
             align     : 'center',
             resolution: 2
@@ -623,7 +625,7 @@ class DarkChessScene extends Phaser.Scene {
             const g  = this.add.graphics().setDepth(22);
             const draw = (a) => { g.clear(); g.lineStyle(2, 0xd4a355, a); g.strokeRect(x-bw/2, y-bh/2, bw, bh); };
             draw(0.6);
-            this.add.text(x, y, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily:"'Zpix',monospace", resolution:2 }).setOrigin(0.5).setDepth(23);
+            this.add.text(x, y, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5).setDepth(23);
             bg.on('pointerover', () => { bg.setFillStyle(0x5c4a38); draw(1); });
             bg.on('pointerout',  () => { bg.setFillStyle(0x4a3728); draw(0.6); });
             bg.on('pointerdown', cb);
@@ -641,15 +643,15 @@ class DarkChessScene extends Phaser.Scene {
     createBackButton() {
         const isMobile = this.isMobile;
         const { ox, oy } = this.boardOffset();
-        const x = ox - this.PAD + (isMobile ? 28 : 32);
-        const y = oy - this.PAD - (isMobile ? 14 : 16);
-        const w = isMobile ? 64 : 72, h = isMobile ? 24 : 26;
+        const x = ox - this.PAD + (isMobile ? 38 : 36);
+        const y = oy - this.PAD - (isMobile ? 18 : 16);
+        const w = isMobile ? 76 : 72, h = isMobile ? 32 : 28;
 
         const bg = this.add.rectangle(x, y, w, h, 0x4a3728).setDepth(5).setInteractive({ useHandCursor: true });
         const g  = this.add.graphics().setDepth(5);
         g.lineStyle(1, 0xd4a355, 0.5);
         g.strokeRect(x-w/2, y-h/2, w, h);
-        this.add.text(x, y, '← 返回', { fontSize: isMobile?'11px':'12px', color:'#f0d9b5', fontFamily:"'Zpix',monospace", resolution:2 }).setOrigin(0.5).setDepth(6);
+        this.add.text(x, y, '返回', { fontSize: isMobile?'13px':'12px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5).setDepth(6);
         bg.on('pointerdown', () => this.scene.start('MenuScene'));
     }
 

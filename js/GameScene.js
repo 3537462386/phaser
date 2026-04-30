@@ -43,9 +43,9 @@
     create() {
         // 左右边距
         const MARGIN_X = 30;
-        const isMobile = this.cameras.main.width < 450;
+        const isMobile = com.isMobileViewport();
         this.isMobile = isMobile;
-        const marginX = isMobile ? 15 : MARGIN_X;
+        const marginX = isMobile ? 20 : MARGIN_X;
 
         // 计算所需最小宽度，宽度不够时增加
         const CS = this.CS;
@@ -71,7 +71,9 @@
         this.SCENE_H = sceneH;
 
         const boardX = Math.floor(marginX);
-        const boardY = Math.floor((sceneH - (boardH + PAD * 2)) / 2);
+        const boardY = isMobile
+            ? 108
+            : Math.floor((sceneH - (boardH + PAD * 2)) / 2);
 
         // 绘制棋盘格背景（填满整个画布）
         this.drawPixelBackground(sceneW, sceneH);
@@ -88,6 +90,7 @@
         this._gameOver = false; // 游戏已结束标志
 
         this.initChessData();
+        this.createStatusHud();
         this.initChessPieces();
         this.createUndoButton();
         this.createMuteButton();
@@ -97,7 +100,7 @@
     drawPixelBackground(drawWidth, drawHeight) {
         const width = drawWidth || this.SCENE_W;
         const height = drawHeight || this.SCENE_H;
-        const isMobile = width < 450;
+        const isMobile = com.isMobileViewport();
         const tileSize = isMobile ? 16 : 20;
 
         const graphics = this.add.graphics();
@@ -176,7 +179,7 @@
         const riverStyle = {
             fontSize   : Math.floor(this.PIECE_SIZE * 0.48) + "px",
             color      : "#5c3010",
-            fontFamily : "'Zpix', monospace",
+            fontFamily : com.pixelFont,
             fontStyle  : "bold",
             stroke     : "#5c3010",
             strokeThickness : 1,
@@ -235,12 +238,51 @@
         });
     }
 
+    createStatusHud() {
+        const W = this.cameras.main.width;
+        const isMobile = this.isMobile;
+        const y = isMobile ? 48 : 42;
+        const w = isMobile ? Math.min(W - 48, 360) : 300;
+        const h = isMobile ? 54 : 46;
+
+        this.add.rectangle(W / 2 + 3, y + 3, w, h, 0x0f0905, 0.72).setDepth(6);
+        this.add.rectangle(W / 2, y, w, h, 0x2b1d13, 0.92).setDepth(7);
+        const border = this.add.graphics().setDepth(8);
+        border.lineStyle(2, 0xd4a355, 0.58);
+        border.strokeRect(W / 2 - w / 2, y - h / 2, w, h);
+
+        this.statusText = this.add.text(W / 2, y - (isMobile ? 8 : 7), '', {
+            fontSize: isMobile ? '17px' : '16px',
+            color: '#f0d9b5',
+            fontFamily: com.pixelFont,
+            resolution: 2
+        }).setOrigin(0.5).setDepth(9);
+
+        this.statusSubText = this.add.text(W / 2, y + (isMobile ? 13 : 11), '', {
+            fontSize: isMobile ? '12px' : '11px',
+            color: '#d4a355',
+            fontFamily: com.pixelFont,
+            resolution: 2
+        }).setOrigin(0.5).setDepth(9);
+
+        this.updateStatusText();
+    }
+
+    updateStatusText(extraText) {
+        if (!this.statusText) return;
+        const side = com.sideName(play.my);
+        const mode = play.mode === 'player_vs_ai' ? '玩家 对 电脑' : '本地双人';
+        this.statusText.setText(extraText || `${side}行棋`);
+        this.statusSubText.setText(mode);
+        this.statusText.setColor(play.my === 1 ? '#ffdad0' : '#e5e0d1');
+    }
+
     createUndoButton() {
-        const isMobile = this.cameras.main.width < 450;
+        const isMobile = this.isMobile;
         const x = this.cameras.main.width / 2;
-        const y = this.cameras.main.height - (isMobile ? 50 : 36);
-        const btnW = isMobile ? 100 : 120;
-        const btnH = isMobile ? 36 : 40;
+        const y = this.cameras.main.height - (isMobile ? 42 : 36);
+        const btnW = isMobile ? 132 : 120;
+        const btnH = isMobile ? 50 : 40;
 
         // 像素风格按钮
         const btnBg = this.add.rectangle(x, y, btnW, btnH, 0x4a3728)
@@ -259,7 +301,7 @@
         this.add.text(x, y, "悔  棋", {
             fontSize   : isMobile ? "16px" : "18px",
             color      : "#f0d9b5",
-            fontFamily : "'Zpix', monospace",
+            fontFamily : com.pixelFont,
             resolution : 2
         }).setOrigin(0.5).setDepth(1);
 
@@ -282,10 +324,10 @@
     }
 
     createMuteButton() {
-        const isMobile = this.cameras.main.width < 450;
-        const x = this.cameras.main.width - (isMobile ? 20 : 28);
-        const y = isMobile ? 24 : 28;
-        const size = isMobile ? 32 : 36;
+        const isMobile = this.isMobile;
+        const x = this.cameras.main.width - (isMobile ? 34 : 28);
+        const y = isMobile ? 38 : 28;
+        const size = isMobile ? 50 : 36;
 
         // 像素风格背景
         const btnBg = this.add.rectangle(x, y, size, size, 0x000000, 0.4);
@@ -295,8 +337,8 @@
 
         // 音符图标（像素风格）
         const icon = this.add.text(x, y - 1,
-            audioConfig.muted ? '🔇' : '🔊',
-            { fontSize: isMobile ? '14px' : '16px', resolution: 2 }
+            audioConfig.muted ? '静' : '声',
+            { fontSize: isMobile ? '16px' : '15px', fontFamily: com.pixelFont, color: '#f0d9b5', resolution: 2 }
         ).setOrigin(0.5);
 
         // 交互区域
@@ -317,7 +359,7 @@
         });
         hitArea.on('pointerdown', () => {
             audioConfig.muted = !audioConfig.muted;
-            icon.setText(audioConfig.muted ? '🔇' : '🔊');
+            icon.setText(audioConfig.muted ? '静' : '声');
             const bgm = this.sound.get('bgm');
             if (bgm) bgm.setVolume(audioConfig.muted ? 0 : audioConfig.bgmVolume);
         });
@@ -409,7 +451,7 @@
         const txt = this.add.text(0, -2, label, {
             fontSize        : Math.floor(sz * 0.46) + "px",
             color           : isRed ? "#ff0000" : "#000000",
-            fontFamily      : "'Zpix', monospace",
+            fontFamily      : com.pixelFont,
             fontStyle       : "bold",
             stroke          : isRed ? "#ff0000" : "#000000",
             strokeThickness : 1,
@@ -576,6 +618,7 @@
         this.clearPieceTintOnly(piece);
         this.tweens.killTweensOf(piece);
         this._moving = true;
+        this.updateStatusText('落子中...');
 
         const targetX = this.OFFSET_X + nlx * this.CS;
         const targetY = this.OFFSET_Y + nly * this.CS;
@@ -658,6 +701,7 @@
 
     endTurn() {
         play.my = -play.my;
+        this.updateStatusText(play.mode === "player_vs_ai" && play.my === -1 ? '电脑思考中' : null);
         if (!play.hasLegalMoves(play.my)) {
             const loser  = play.my ===  1 ? "红方" : "黑方";
             const winner = play.my === -1 ? "红方" : "黑方";
@@ -678,7 +722,7 @@
 
         const W = this.cameras.main.width;
         const H = this.cameras.main.height;
-        const isMobile = W < 450;
+        const isMobile = this.isMobile;
 
         // 半透明遮罩
         this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(20);
@@ -695,7 +739,7 @@
         this.add.text(W / 2, H / 2 - panelH / 2 + (isMobile ? 36 : 44), msg, {
             fontSize   : isMobile ? "16px" : "18px",
             color      : "#f0d9b5",
-            fontFamily : "'Zpix', monospace",
+            fontFamily : com.pixelFont,
             wordWrap   : { width: panelW - 32 },
             align      : "center",
             resolution : 2
@@ -714,7 +758,7 @@
             drawBorder(0.6);
             this.add.text(x, y, label, {
                 fontSize: isMobile ? "14px" : "15px", color: "#f0d9b5",
-                fontFamily: "'Zpix', monospace", resolution: 2
+                fontFamily: com.pixelFont, resolution: 2
             }).setOrigin(0.5).setDepth(23);
             bg.on("pointerover",  () => { bg.setFillStyle(0x5c4a38); drawBorder(1); });
             bg.on("pointerout",   () => { bg.setFillStyle(0x4a3728); drawBorder(0.6); });

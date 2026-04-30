@@ -66,6 +66,19 @@ com.get = function(id) {
     return document.getElementById(id) || { set innerHTML(v) { console.log("UI Update:", v) } };
 };
 
+com.isMobileViewport = function () {
+    if (typeof window === 'undefined') return false;
+    const shortSide = Math.min(window.innerWidth || 0, window.innerHeight || 0);
+    const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return shortSide <= 640 || coarsePointer;
+};
+
+com.pixelFont = "'Zpix', 'PixelMplus10', 'Fusion Pixel', monospace";
+
+com.sideName = function (side) {
+    return side === 1 ? '红方' : '黑方';
+};
+
 /**
  * 核心游戏逻辑控制
  */
