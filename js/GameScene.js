@@ -70,10 +70,8 @@
         this.SCENE_W = sceneW;
         this.SCENE_H = sceneH;
 
-        const boardX = Math.floor(marginX);
-        const boardY = isMobile
-            ? 108
-            : Math.floor((sceneH - (boardH + PAD * 2)) / 2);
+        const boardX = Math.floor((sceneW - (boardW + PAD * 2)) / 2);
+        const boardY = Math.floor((sceneH - (boardH + PAD * 2)) / 2);
 
         // 绘制棋盘格背景（填满整个画布）
         this.drawPixelBackground(sceneW, sceneH);
@@ -335,10 +333,10 @@
         border.lineStyle(2, 0xd4a355, 0.4);
         border.strokeRect(x - size/2, y - size/2, size, size);
 
-        // 音符图标（像素风格）
+        // 音量图标
         const icon = this.add.text(x, y - 1,
-            audioConfig.muted ? '静' : '声',
-            { fontSize: isMobile ? '16px' : '15px', fontFamily: com.pixelFont, color: '#f0d9b5', resolution: 2 }
+            audioConfig.muted ? '🔇' : '🔊',
+            { fontSize: isMobile ? '18px' : '16px', resolution: 2 }
         ).setOrigin(0.5);
 
         // 交互区域
@@ -359,7 +357,7 @@
         });
         hitArea.on('pointerdown', () => {
             audioConfig.muted = !audioConfig.muted;
-            icon.setText(audioConfig.muted ? '静' : '声');
+            icon.setText(audioConfig.muted ? '🔇' : '🔊');
             const bgm = this.sound.get('bgm');
             if (bgm) bgm.setVolume(audioConfig.muted ? 0 : audioConfig.bgmVolume);
         });
