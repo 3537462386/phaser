@@ -140,8 +140,14 @@
             background: rgba(74, 222, 128, 0.1);
         }
 
+        .game-status.testing {
+            color: #facc15;
+            background: rgba(250, 204, 21, 0.1);
+        }
+
         .game-status.coming {
             color: var(--muted);
+            background: rgba(102, 102, 102, 0.1);
         }
 
         footer {
@@ -242,12 +248,12 @@
                 <a href="${game.url}" 
                    class="game-item ${game.url === '#' ? 'disabled' : ''}"
                    ${game.url === '#' ? 'aria-disabled="true" tabindex="0" onclick="return false;"' : 'rel="noopener noreferrer"'}
-                   aria-label="${game.name} - ${game.status === 'online' ? '在线' : '开发中'}">
+                   aria-label="${game.name} - ${game.status === 'online' ?  '在线' : game.status === 'testing' ? '测试中' : '敬请期待'}">
                     <div class="game-info">
                         <span class="game-name">${game.name}</span>
                         <span class="game-url">${game.url === '#' ? 'wip…' : game.url}</span>
                     </div>
-                    <span class="game-status ${game.status}">${game.status === 'online' ? 'online' : 'wip'}</span>
+                    <span class="game-status ${game.status}">${game.status === 'online' ? 'online' : game.status === 'testing' ? 'testing' : 'coming'}</span>
                 </a>
             `).join('');
         }
