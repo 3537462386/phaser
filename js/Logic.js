@@ -20,6 +20,42 @@ com.arr2Clone = function (arr) {
     return newArr;
 };
 
+/**
+ * 检测两将是否在同一列且中间无子（飞将判断）
+ * @returns {boolean} true = 两将对视（违规）
+ */
+com.isGeneralsFacing = function(map) {
+    let redJ = null, blackJ = null;
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 9; x++) {
+            const k = map[y][x];
+            if (!k) continue;
+            if (k[0] === 'j') redJ   = { x, y };
+            if (k[0] === 'J') blackJ = { x, y };
+        }
+    }
+    if (!redJ || !blackJ || redJ.x !== blackJ.x) return false;
+    const col  = redJ.x;
+    const minY = Math.min(redJ.y, blackJ.y);
+    const maxY = Math.max(redJ.y, blackJ.y);
+    for (let y = minY + 1; y < maxY; y++) {
+        if (map[y][col]) return false;
+    }
+    return true;
+};
+
+/**
+ * 过滤走棋后会造成飞将（将帅对视）的非法走法
+ */
+com.filterLegalMoves = function(man, moves, map) {
+    return moves.filter(([nx, ny]) => {
+        const sim = com.arr2Clone(map);
+        sim[man.y][man.x] = null;
+        sim[ny][nx] = map[man.y][man.x];
+        return !com.isGeneralsFacing(sim);
+    });
+};
+
 com.gambit = [];
 
 com.createMove = function(map, x1, y1, x2, y2) {
@@ -80,7 +116,7 @@ class J extends Man { // 将/帅
                 if (!target || (target === target.toLowerCase()) !== this.isRed) moves.push([nx, ny]);
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -99,7 +135,7 @@ class C extends Man { // 车
                 }
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -113,7 +149,7 @@ class M extends Man { // 马
                 if (!target || (target === target.toLowerCase()) !== this.isRed) moves.push([nx, ny]);
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -135,7 +171,7 @@ class P extends Man { // 炮
                 }
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -158,7 +194,7 @@ class Z extends Man { // 兵/卒
                 }
             });
         }
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -173,7 +209,7 @@ class X extends Man { // 相/象
                 if (!target || (target === target.toLowerCase()) !== this.isRed) moves.push([nx, ny]);
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -188,7 +224,7 @@ class S extends Man { // 仕/士
                 if (!target || (target === target.toLowerCase()) !== this.isRed) moves.push([nx, ny]);
             }
         });
-        return moves;
+        return com.filterLegalMoves(this, moves, map);
     }
 }
 
@@ -205,5 +241,18 @@ play.initMans = function(map) {
             }
         }
     }
+};
+
+/**
+ * 判断指定方是否还有合法走法
+ * @param {number} side  1=红方, -1=黑方
+ */
+play.hasLegalMoves = function(side) {
+    for (const key in play.mans) {
+        const man = play.mans[key];
+        if (man.my !== side) continue;
+        if (man.bl(play.map).length > 0) return true;
+    }
+    return false;
 };
 

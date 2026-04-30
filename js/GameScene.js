@@ -44,6 +44,7 @@
         // 左右边距
         const MARGIN_X = 30;
         const isMobile = this.cameras.main.width < 450;
+        this.isMobile = isMobile;
         const marginX = isMobile ? 15 : MARGIN_X;
 
         // 计算所需最小宽度，宽度不够时增加
@@ -84,11 +85,13 @@
         this.dots = [];
         this.moveMarkers = []; // 记录移动轨迹的点
         this._moving = false;  // 动画进行中标志
+        this._gameOver = false; // 游戏已结束标志
 
         this.initChessData();
         this.initChessPieces();
         this.createUndoButton();
         this.createMuteButton();
+        this.createBoardInputLayer();
     }
 
     drawPixelBackground(drawWidth, drawHeight) {
@@ -414,14 +417,16 @@
         }).setOrigin(0.5, 0.5);
 
         const container = this.add.container(x, y, [img, txt]);
-        container.setSize(sz, sz).setInteractive();
+        // 手机端扩大可点击区域，至少覆盖整个格子
+        const hitSz = this.isMobile ? Math.max(sz, this.CS + 6) : sz;
+        container.setSize(hitSz, hitSz).setInteractive();
         container.setData("lx", lx).setData("ly", ly).setData("key", key);
         container.on("pointerdown", () => this.onPieceClicked(container));
         this.piecesMap[key] = container;
     }
 
     onPieceClicked(piece) {
-        if (this._moving) return; // 动画进行中，禁止操作
+        if (this._moving || this._gameOver) return; // 动画进行中或游戏已结束，禁止操作
         const key   = piece.getData("key");
         const isRed = key === key.toLowerCase();
         if (play.my === 1) {
@@ -505,7 +510,9 @@
             const core = this.add.circle(x, y, 2, 0x00e000, 0.8);
             
             const group = this.add.container(0, 0, [ring, core]);
-            group.setInteractive(new Phaser.Geom.Circle(x, y, 10), Phaser.Geom.Circle.Contains);
+            // 点击半径覆盖整个格子的一半，手机端更大
+            const dotHitR = this.isMobile ? Math.floor(this.CS * 0.6) : Math.floor(this.CS * 0.48);
+            group.setInteractive(new Phaser.Geom.Circle(x, y, dotHitR), Phaser.Geom.Circle.Contains);
             group.on("pointerdown", () => this.attemptMove(this.selectedPiece, lx, ly));
             
             this.dots.push(group);
@@ -526,12 +533,13 @@
         play.history.push({ key, from: { x: olx, y: oly }, to: { x: nlx, y: nly },
                             eaten: targetKey ? { key: targetKey } : null });
 
+        let eatenGeneral = false;
         if (targetKey) {
             this.piecesMap[targetKey].destroy();
             delete this.piecesMap[targetKey];
-            if (targetKey.toLowerCase().startsWith("j")) {
-                alert(play.my === 1 ? "红方获胜！" : "黑方获胜！");
-                location.reload();
+            delete play.mans[targetKey];
+            if (targetKey[0].toLowerCase() === 'j') {
+                eatenGeneral = true;
             }
         }
 
@@ -599,7 +607,12 @@
                             ease    : "Back.easeOut",
                             onComplete: () => {
                                 this._moving = false;
-                                this.endTurn();
+                                if (eatenGeneral) {
+                                    const winner = play.my === 1 ? "红方" : "黑方";
+                                    this.showGameOver(`${winner}吃掉对方将帅，${winner}获胜！`);
+                                } else {
+                                    this.endTurn();
+                                }
                             }
                         });
                     }
@@ -612,10 +625,106 @@
         this.dots = [];
     }
 
+    /**
+     * 棋盘背景输入层：点击空白格时自动吸附到最近格点执行移动
+     * 作为落点小绿点的兜底——即使没有精确点中绿点也能移动
+     */
+    createBoardInputLayer() {
+        const { COLS, ROWS, CS, OFFSET_X, OFFSET_Y } = this;
+        const boardW = (COLS - 1) * CS;
+        const boardH = (ROWS - 1) * CS;
+        // 半格 padding 一起纳入可点击区域
+        const PAD = this.PAD;
+        const zone = this.add.zone(
+            OFFSET_X - PAD, OFFSET_Y - PAD,
+            boardW + PAD * 2, boardH + PAD * 2
+        ).setOrigin(0, 0).setInteractive().setDepth(-1);
+
+        zone.on("pointerdown", (pointer) => {
+            if (!this.selectedPiece || this._moving || this._gameOver) return;
+            // 将指针坐标吸附到最近格点
+            const lx = Math.round((pointer.x - OFFSET_X) / CS);
+            const ly = Math.round((pointer.y - OFFSET_Y) / CS);
+            if (lx < 0 || lx >= COLS || ly < 0 || ly >= ROWS) return;
+            // 目标格有己方棋子时，改为选中该棋子
+            const targetKey = play.map[ly][lx];
+            if (targetKey) {
+                // 有棋子时交给棋子的 pointerdown 处理，这里不重复处理
+                return;
+            }
+            this.attemptMove(this.selectedPiece, lx, ly);
+        });
+    }
+
     endTurn() {
         play.my = -play.my;
+        if (!play.hasLegalMoves(play.my)) {
+            const loser  = play.my ===  1 ? "红方" : "黑方";
+            const winner = play.my === -1 ? "红方" : "黑方";
+            this.showGameOver(`${loser}无路可走（死棋），${winner}获胜！`);
+            return;
+        }
         if (play.mode === "player_vs_ai" && play.my === -1)
             this.time.delayedCall(500, () => this.aiTurn());
+    }
+
+    showGameOver(msg) {
+        this._gameOver = true;
+        // 清除已选棋子状态
+        if (this.selectedPiece) this.clearPieceTint(this.selectedPiece);
+        this.selectedPiece = null;
+        this.dots.forEach(d => d.destroy());
+        this.dots = [];
+
+        const W = this.cameras.main.width;
+        const H = this.cameras.main.height;
+        const isMobile = W < 450;
+
+        // 半透明遮罩
+        this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(20);
+
+        // 面板
+        const panelW = Math.min(W - 40, 300);
+        const panelH = isMobile ? 160 : 180;
+        this.add.rectangle(W / 2, H / 2, panelW, panelH, 0x3d2a1a).setDepth(21);
+        const border = this.add.graphics().setDepth(21);
+        border.lineStyle(2, 0xd4a355, 1);
+        border.strokeRect(W / 2 - panelW / 2, H / 2 - panelH / 2, panelW, panelH);
+
+        // 结果文字
+        this.add.text(W / 2, H / 2 - panelH / 2 + (isMobile ? 36 : 44), msg, {
+            fontSize   : isMobile ? "16px" : "18px",
+            color      : "#f0d9b5",
+            fontFamily : "'Zpix', monospace",
+            wordWrap   : { width: panelW - 32 },
+            align      : "center",
+            resolution : 2
+        }).setOrigin(0.5).setDepth(22);
+
+        // 按钮辅助
+        const makeBtn = (x, y, label, cb) => {
+            const bw = isMobile ? 104 : 114, bh = isMobile ? 34 : 38;
+            const bg = this.add.rectangle(x, y, bw, bh, 0x4a3728).setDepth(22).setInteractive({ useHandCursor: true });
+            const g = this.add.graphics().setDepth(22);
+            const drawBorder = (alpha) => {
+                g.clear();
+                g.lineStyle(2, 0xd4a355, alpha);
+                g.strokeRect(x - bw / 2, y - bh / 2, bw, bh);
+            };
+            drawBorder(0.6);
+            this.add.text(x, y, label, {
+                fontSize: isMobile ? "14px" : "15px", color: "#f0d9b5",
+                fontFamily: "'Zpix', monospace", resolution: 2
+            }).setOrigin(0.5).setDepth(23);
+            bg.on("pointerover",  () => { bg.setFillStyle(0x5c4a38); drawBorder(1); });
+            bg.on("pointerout",   () => { bg.setFillStyle(0x4a3728); drawBorder(0.6); });
+            bg.on("pointerdown",  cb);
+        };
+
+        const gap = isMobile ? 62 : 68;
+        const btnY = H / 2 + panelH / 2 - (isMobile ? 30 : 34);
+        makeBtn(W / 2 - gap, btnY, "再来一局", () => location.reload());
+        makeBtn(W / 2 + gap, btnY, "主  菜  单", () => this.scene.start("MenuScene"));
     }
 
     aiTurn() {
@@ -625,8 +734,7 @@
             const [ox, oy, nx, ny] = move;
             this.movePiece(play.map[oy][ox], nx, ny);
         } else {
-            alert("AI 认输，红方获胜！");
-            this.scene.start("MenuScene");
+            this.showGameOver("黑方无路可走（死棋），红方获胜！");
         }
     }
 }

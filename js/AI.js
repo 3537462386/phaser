@@ -124,7 +124,7 @@ AI.getMoves = function (map, my, txtMap){
 }
 */
 //取得棋谱所有己方棋子的着法
-AI.getMoves = function (map, my) {
+AI.getMoves = function (map, my, shuffle) {
     var manArr = AI.getMapAllMan(map, my);
     var moves = [];
     var foul = play.isFoul;
@@ -143,25 +143,28 @@ AI.getMoves = function (map, my) {
             }
         }
     }
+    // 根节点随机打乱走法顺序，避免同分时每局开局一样
+    if (shuffle) {
+        for (var i = moves.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = moves[i]; moves[i] = moves[j]; moves[j] = tmp;
+        }
+    }
     return moves;
 }
 //A:当前棋手value/B:对手value/depth：层级
 AI.getAlphaBeta = function (A, B, depth, map, my) {
-    //var txtMap= map.join();
-    //var history=AI.historyTable[txtMap];
-    //	if (history && history.depth >= AI.treeDepth-depth+1){
-    //		return 	history.value*my;
-    //}
     if (depth == 0) {
-        return { "value": AI.evaluate(map, my) }; //局面评价函数; 
+        return { "value": AI.evaluate(map, my) }; //局面评价函数;
     }
-    var moves = AI.getMoves(map, my); //生成全部走法; 
-    //这里排序以后会增加效率
+    var isRoot = (AI.treeDepth == depth);
+    // 根节点打乱走法顺序，子节点保持原序（效率优先）
+    var moves = AI.getMoves(map, my, isRoot);
+
+    // 根节点用候选列表收集所有同分最优走法，最后随机选一个
+    var rootCandidates = isRoot ? [] : null;
 
     for (var i = 0; i < moves.length; i++) {
-
-
-        //走这个走法;
         var move = moves[i];
         var key = move[4];
         var oldX = move[0];
@@ -175,52 +178,42 @@ AI.getAlphaBeta = function (A, B, depth, map, my) {
         play.mans[key].x = newX;
         play.mans[key].y = newY;
 
-        if (clearKey == "j0" || clearKey == "J0") {//被吃老将,撤消这个走法; 
+        if (clearKey == "j0" || clearKey == "J0") {//被吃老将,撤消这个走法;
             play.mans[key].x = oldX;
             play.mans[key].y = oldY;
             map[oldY][oldX] = key;
             delete map[newY][newX];
-            if (clearKey) {
-                map[newY][newX] = clearKey;
-                // play.mans[ clearKey ].isShow = false;
-            }
-
+            if (clearKey) map[newY][newX] = clearKey;
             return { "key": key, "x": newX, "y": newY, "value": 8888 };
-            //return rootKey; 
         } else {
             var val = -AI.getAlphaBeta(-B, -A, depth - 1, map, -my).value;
-            //val = val || val.value;
 
-            //撤消这个走法;　 
             play.mans[key].x = oldX;
             play.mans[key].y = oldY;
             map[oldY][oldX] = key;
             delete map[newY][newX];
-            if (clearKey) {
-                map[newY][newX] = clearKey;
-                //play.mans[ clearKey ].isShow = true;
-            }
+            if (clearKey) map[newY][newX] = clearKey;
+
             if (val >= B) {
-                //将这个走法记录到历史表中; 
-                //AI.setHistoryTable(txtMap,AI.treeDepth-depth+1,B,my);
                 return { "key": key, "x": newX, "y": newY, "value": B };
             }
             if (val > A) {
-                A = val; //设置最佳走法; 
-                if (AI.treeDepth == depth) var rootKey = { "key": key, "x": newX, "y": newY, "value": A };
+                A = val;
+                if (isRoot) {
+                    // 新的最优分，重置候选列表
+                    rootCandidates = [{ "key": key, "x": newX, "y": newY, "value": A }];
+                }
+            } else if (isRoot && val === A && rootCandidates.length > 0) {
+                // 与当前最优分相同，加入候选
+                rootCandidates.push({ "key": key, "x": newX, "y": newY, "value": A });
             }
         }
     }
-    //将这个走法记录到历史表中; 
-    //AI.setHistoryTable(txtMap,AI.treeDepth-depth+1,A,my);
-    if (AI.treeDepth == depth) {//已经递归回根了
-        if (!rootKey) {
-            //AI没有最佳走法，说明AI被将死了，返回false
-            return false;
-        } else {
-            //这个就是最佳走法;
-            return rootKey;
-        }
+
+    if (isRoot) {
+        if (!rootCandidates || rootCandidates.length === 0) return false;
+        // 从同分最优走法中随机选一个，让开局不固定
+        return rootCandidates[Math.floor(Math.random() * rootCandidates.length)];
     }
     return { "key": key, "x": newX, "y": newY, "value": A };
 }
@@ -243,10 +236,15 @@ AI.evaluate = function (map, my) {
         }
     }
 
-    // 根据难度添加随机干扰
+    // 根据难度添加随机干扰；开局前10步额外加大噪声，避免每局走法一样
     var config = AI.getDifficulty();
-    if (config.random > 0) {
-        val += Math.floor(Math.random() * config.random * 2) - config.random;
+    var randomRange = config.random;
+    if (play.history.length < 10) {
+        // 开局阶段：噪声额外放大，simple/normal 各翻倍，hard 也给少量随机
+        randomRange = Math.max(randomRange * 2, 8);
+    }
+    if (randomRange > 0) {
+        val += Math.floor(Math.random() * randomRange * 2) - randomRange;
     }
 
     AI.number++;
