@@ -559,6 +559,8 @@ class AttackSystem {
     container.target = target;
     container.life = 2.0;
     container.rotation = angle;
+    container.launchX = attacker.x;
+    container.launchY = attacker.y;
 
     // 判断是否为 wuzhuzhu，发射麻将子弹
     if (attacker.char.id === 'wuzhuzhu') {

@@ -8,8 +8,8 @@ const CANVAS_H = 600;
 
 // 擂台参数
 const ARENA_X = 50;
-const ARENA_Y = 60;
-const ARENA_SIZE = 500;
+const ARENA_Y = 55;
+const ARENA_SIZE = 460;
 
 // 血条尺寸
 const HP_BAR_W = 140;
@@ -55,13 +55,13 @@ class GameScene extends Phaser.Scene {
     arena.strokeRect(ARENA_X, ARENA_Y, ARENA_SIZE, ARENA_SIZE);
 
     // ---------- 标题 ----------
-    this.add.text(CANVAS_W / 2, 50, `${char1.name} VS ${char2.name}`, {
-      fontSize: '28px',
+    this.add.text(CANVAS_W / 2, 30, `${char1.name} VS ${char2.name}`, {
+      fontSize: '22px',
       fontFamily: 'Arial, sans-serif',
       color: '#ffffff',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 6
+      strokeThickness: 5
     }).setOrigin(0.5, 0.5);
 
     // 返回菜单按钮
@@ -195,78 +195,99 @@ class GameScene extends Phaser.Scene {
   }
 
   createHpUI() {
-    const y = CANVAS_H - 70;
+    // 竞技场底边: ARENA_Y + ARENA_SIZE = 55 + 460 = 515
+    // 可用区域: y=518 到 y=598 约 80px
+    const yName = 526;
+    const yBar  = 546;
+    const yAtk  = 564;
 
-    this.hpBarBg1 = this.add.graphics();
+    // 左侧 P1（从左边距 10 开始，宽度到中线左侧 10px）
+    const barX1 = 10;
+    const barW1 = CANVAS_W / 2 - 15 - barX1;  // 约 275px
+    // 右侧 P2（从中线右侧 10 开始，到右边距 10）
+    const barX2 = CANVAS_W / 2 + 15;
+    const barW2 = CANVAS_W - 10 - barX2;        // 约 275px
+
+    this.hpBarBg1   = this.add.graphics();
     this.hpBarFill1 = this.add.graphics();
+    this.hpBarBg2   = this.add.graphics();
+    this.hpBarFill2 = this.add.graphics();
+
+    // 血条内数值文字
     this.hpLabel1 = this.add.text(0, 0, '', {
       fontSize: '11px', fontFamily: 'Arial', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5, 0.5);
-
-    this.hpBarBg2 = this.add.graphics();
-    this.hpBarFill2 = this.add.graphics();
     this.hpLabel2 = this.add.text(0, 0, '', {
       fontSize: '11px', fontFamily: 'Arial', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5, 0.5);
 
-    this.nameLabel1 = this.add.text(CANVAS_W / 2 - HP_BAR_W - 30, y, 
+    // 名字标签（各自对齐到血条外侧）
+    this.nameLabel1 = this.add.text(barX1, yName,
       `${this.char1.name} (你)`, {
-      fontSize: '13px', color: '#' + this.char1.fillColor.toString(16).padStart(6, '0'), 
-      fontFamily: 'Arial', fontStyle: 'bold'
-    }).setOrigin(1, 0.5);
-
-    this.nameLabel2 = this.add.text(CANVAS_W / 2 + HP_BAR_W + 30, y, 
-      `(电脑) ${this.char2.name}`, {
-      fontSize: '13px', color: '#' + this.char2.fillColor.toString(16).padStart(6, '0'), 
+      fontSize: '12px', color: '#' + this.char1.fillColor.toString(16).padStart(6, '0'),
       fontFamily: 'Arial', fontStyle: 'bold'
     }).setOrigin(0, 0.5);
 
-    this.attackInfo1 = this.add.text(CANVAS_W / 2 - HP_BAR_W - 30, y + 18, 
+    const p2Label = this.gameMode === 'pvp'
+      ? `(玩家2) ${this.char2.name}`
+      : `(电脑) ${this.char2.name}`;
+    this.nameLabel2 = this.add.text(CANVAS_W - 10, yName,
+      p2Label, {
+      fontSize: '12px', color: '#' + this.char2.fillColor.toString(16).padStart(6, '0'),
+      fontFamily: 'Arial', fontStyle: 'bold'
+    }).setOrigin(1, 0.5);
+
+    // 技能名（各自居中于血条下方）
+    this.attackInfo1 = this.add.text(barX1 + barW1 / 2, yAtk,
       `⚔ ${this.char1.attack.name}`, {
-      fontSize: '10px', color: '#666666', fontFamily: 'Arial'
-    }).setOrigin(1, 0.5);
+      fontSize: '10px', color: '#888888', fontFamily: 'Arial'
+    }).setOrigin(0.5, 0.5);
 
-    this.attackInfo2 = this.add.text(CANVAS_W / 2 + HP_BAR_W + 30, y + 18, 
+    this.attackInfo2 = this.add.text(barX2 + barW2 / 2, yAtk,
       `${this.char2.attack.name} ⚔`, {
-      fontSize: '10px', color: '#666666', fontFamily: 'Arial'
-    }).setOrigin(0, 0.5);
+      fontSize: '10px', color: '#888888', fontFamily: 'Arial'
+    }).setOrigin(0.5, 0.5);
+
+    // 存储条参数供 drawHpBars 使用
+    this._hpBar = { barX1, barW1, barX2, barW2, yBar };
 
     this.drawHpBars();
   }
 
   drawHpBars() {
-    const y = CANVAS_H - 70;
+    const { barX1, barW1, barX2, barW2, yBar } = this._hpBar;
+    const barH = HP_BAR_H;
 
-    const x1 = CANVAS_W / 2 - 20;
+    // ---- P1 血条 ----
     this.hpBarBg1.clear();
-    this.hpBarBg1.fillStyle(0xdddddd, 1);
-    this.hpBarBg1.fillRect(x1 - HP_BAR_W, y - HP_BAR_H / 2, HP_BAR_W, HP_BAR_H);
-    this.hpBarBg1.lineStyle(1, 0xaaaaaa, 1);
-    this.hpBarBg1.strokeRect(x1 - HP_BAR_W, y - HP_BAR_H / 2, HP_BAR_W, HP_BAR_H);
+    this.hpBarBg1.fillStyle(0x555555, 1);
+    this.hpBarBg1.fillRect(barX1, yBar - barH / 2, barW1, barH);
+    this.hpBarBg1.lineStyle(1, 0x888888, 1);
+    this.hpBarBg1.strokeRect(barX1, yBar - barH / 2, barW1, barH);
 
     const ratio1 = Math.max(0, this.hp1 / this.char1.maxHp);
-    const w1 = HP_BAR_W * ratio1;
     this.hpBarFill1.clear();
     this.hpBarFill1.fillStyle(this.char1.fillColor, 1);
-    this.hpBarFill1.fillRect(x1 - w1, y - HP_BAR_H / 2, w1, HP_BAR_H);
+    this.hpBarFill1.fillRect(barX1, yBar - barH / 2, barW1 * ratio1, barH);
 
-    this.hpLabel1.setPosition(x1 - HP_BAR_W / 2, y);
+    this.hpLabel1.setPosition(barX1 + barW1 / 2, yBar);
     this.hpLabel1.setText(`${Math.ceil(this.hp1)} / ${this.char1.maxHp}`);
 
-    const x2 = CANVAS_W / 2 + 20;
+    // ---- P2 血条（从右侧往左缩减）----
     this.hpBarBg2.clear();
-    this.hpBarBg2.fillStyle(0xdddddd, 1);
-    this.hpBarBg2.fillRect(x2, y - HP_BAR_H / 2, HP_BAR_W, HP_BAR_H);
-    this.hpBarBg2.lineStyle(1, 0xaaaaaa, 1);
-    this.hpBarBg2.strokeRect(x2, y - HP_BAR_H / 2, HP_BAR_W, HP_BAR_H);
+    this.hpBarBg2.fillStyle(0x555555, 1);
+    this.hpBarBg2.fillRect(barX2, yBar - barH / 2, barW2, barH);
+    this.hpBarBg2.lineStyle(1, 0x888888, 1);
+    this.hpBarBg2.strokeRect(barX2, yBar - barH / 2, barW2, barH);
 
     const ratio2 = Math.max(0, this.hp2 / this.char2.maxHp);
-    const w2 = HP_BAR_W * ratio2;
     this.hpBarFill2.clear();
     this.hpBarFill2.fillStyle(this.char2.fillColor, 1);
-    this.hpBarFill2.fillRect(x2, y - HP_BAR_H / 2, w2, HP_BAR_H);
+    // 从右往左减少
+    const fill2W = barW2 * ratio2;
+    this.hpBarFill2.fillRect(barX2 + barW2 - fill2W, yBar - barH / 2, fill2W, barH);
 
-    this.hpLabel2.setPosition(x2 + HP_BAR_W / 2, y);
+    this.hpLabel2.setPosition(barX2 + barW2 / 2, yBar);
     this.hpLabel2.setText(`${Math.ceil(this.hp2)} / ${this.char2.maxHp}`);
   }
 
@@ -368,83 +389,128 @@ class GameScene extends Phaser.Scene {
   }
 
   updateAI(dt) {
-    const cpu = this.player2;
-    const player = this.player1;
-    const char = cpu.char;
+    // 电脑（玩家2）始终由AI控制
+    this.runCharacterAI(this.player2, this.player1, dt);
+    // PVE模式下玩家1也由AI控制（自动战斗）
+    if (this.gameMode !== 'pvp') {
+      this.runCharacterAI(this.player1, this.player2, dt);
+    }
+  }
 
-    const dx = player.x - cpu.x;
-    const dy = player.y - cpu.y;
+  runCharacterAI(self, enemy, dt) {
+    const char = self.char;
+
+    const dx = enemy.x - self.x;
+    const dy = enemy.y - self.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    const normX = dist > 0 ? dx / dist : 0;
+    const normY = dist > 0 ? dy / dist : 0;
 
-    // 冲锋类攻击逻辑（区分蓄力型和瞬发型）
-    if (char.attack.type === ATTACK_TYPE.CHARGE && cpu.attackCooldown <= 0) {
-      // 已经在蓄力或冲刺中，不处理
-      if (cpu.isCharging || cpu.isDashing) return;
-      
-      if (dist > 60 && dist < char.attack.range) {
-        cpu.isCharging = true;
-        cpu.chargeTimer = 0;
-        cpu.vx = 0;
-        cpu.vy = 0;
-        // 保存冲刺目标
-        cpu.dashTargetX = player.x;
-        cpu.dashTargetY = player.y;
-        cpu.attackCooldown = char.attack.cooldown;
+    // 冲锋类攻击逻辑
+    if (char.attack.type === ATTACK_TYPE.CHARGE) {
+      // 冲刺中：不处理移动决策
+      if (self.isDashing) return;
+
+      // 蓄力中：动态更新目标位置（跟踪敌人当前位置）
+      if (self.isCharging) {
+        self.dashTargetX = enemy.x;
+        self.dashTargetY = enemy.y;
         return;
       }
-    }
 
-    // 神射保持距离
-    if (char.attack.type === ATTACK_TYPE.RANGED) {
-      const optimal = char.attack.distanceBonus?.optimalDistance || 150;
-      if (dist < optimal - 50) {
-        cpu.vx = -Math.sign(dx) * char.speed * 0.8;
-        cpu.vy = -Math.sign(dy) * char.speed * 0.8;
-      } else if (dist > optimal + 50) {
-        cpu.vx = Math.sign(dx) * char.speed * 0.6;
-        cpu.vy = Math.sign(dy) * char.speed * 0.6;
+      if (self.attackCooldown <= 0 && dist > 50 && dist < char.attack.range) {
+        if (char.attack.chargeTime) {
+          // 蓄力型（妇人科）：先蓄力再冲刺
+          self.isCharging = true;
+          self.chargeTimer = 0;
+        } else {
+          // 直接冲刺型（承太郎）：立即冲出
+          self.isDashing = true;
+          self.dashStartX = self.x;
+          self.dashStartY = self.y;
+        }
+        self.vx = 0;
+        self.vy = 0;
+        self.dashTargetX = enemy.x;
+        self.dashTargetY = enemy.y;
+        self.attackCooldown = char.attack.cooldown;
+        return;
+      }
+
+      // 不在攻击范围时向敌人靠近
+      if (dist > char.attack.range * 0.8) {
+        self.vx = normX * char.speed;
+        self.vy = normY * char.speed;
+      } else if (dist < 50) {
+        // 太近了，稍微后退
+        self.vx = -normX * char.speed * 0.5;
+        self.vy = -normY * char.speed * 0.5;
       }
       return;
     }
 
-    // 其他角色：随机游走
-    if (Math.random() < 0.02) {
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      cpu.vx = Math.cos(angle) * char.speed;
-      cpu.vy = Math.sin(angle) * char.speed;
+    // 远程类：保持最佳距离
+    if (char.attack.type === ATTACK_TYPE.RANGED) {
+      const optimal = char.attack.distanceBonus?.optimalDistance || 150;
+      if (dist < optimal - 50) {
+        // 太近，后退
+        self.vx = -normX * char.speed * 0.8;
+        self.vy = -normY * char.speed * 0.8;
+      } else if (dist > optimal + 80) {
+        // 太远，靠近
+        self.vx = normX * char.speed * 0.6;
+        self.vy = normY * char.speed * 0.6;
+      } else {
+        // 在最佳距离，缓慢侧移
+        self.vx += (Math.random() - 0.5) * char.speed * 0.3;
+        self.vy += (Math.random() - 0.5) * char.speed * 0.3;
+        const curSpeed = Math.sqrt(self.vx * self.vx + self.vy * self.vy);
+        if (curSpeed > char.speed * 0.5) {
+          self.vx = self.vx / curSpeed * char.speed * 0.5;
+          self.vy = self.vy / curSpeed * char.speed * 0.5;
+        }
+      }
+      return;
+    }
+
+    // 其他角色（近战/光环）：向敌人冲
+    if (Math.random() < 0.03) {
+      self.vx = normX * char.speed + (Math.random() - 0.5) * char.speed * 0.3;
+      self.vy = normY * char.speed + (Math.random() - 0.5) * char.speed * 0.3;
     }
   }
 
   movePlayer(player, dt) {
     const char = player.char;
-    let speed = char.speed;
 
     // 蓄力状态 - 不能移动
     if (player.isCharging) {
       return;
     }
 
-    // 冲刺状态 - 沿直线冲向目标
+    let vx, vy;
+
+    // 冲刺状态 - 沿直线向目标冲去（直接计算速度，不经过 vx/vy 存储）
     if (player.isDashing && player.dashTargetX !== undefined) {
       const attack = char.attack;
-      speed *= attack.speedMultiplier || 2.5;
-      
+      const dashSpeed = char.speed * (attack.speedMultiplier || 2.5);
+
       const dx = player.dashTargetX - player.x;
       const dy = player.dashTargetY - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      
+
       if (dist > 5) {
-        player.vx = (dx / dist) * speed;
-        player.vy = (dy / dist) * speed;
+        vx = (dx / dist) * dashSpeed;
+        vy = (dy / dist) * dashSpeed;
       } else {
-        player.vx = 0;
-        player.vy = 0;
+        vx = 0;
+        vy = 0;
         player.isDashing = false;
       }
+    } else {
+      vx = player.vx;
+      vy = player.vy;
     }
-
-    const vx = player.vx / char.speed * speed;
-    const vy = player.vy / char.speed * speed;
 
     player.x += vx * dt;
     player.y += vy * dt;
@@ -454,21 +520,25 @@ class GameScene extends Phaser.Scene {
     const top = ARENA_Y + char.size / 2;
     const bottom = ARENA_Y + ARENA_SIZE - char.size / 2;
 
-    // 碰撞边界处理
+    // 碰撞边界处理：停止冲刺并反弹速度
     if (player.x <= left) {
       player.x = left;
-      if (player.isDashing) { player.isDashing = false; player.vx = 0; }
+      if (player.isDashing) { player.isDashing = false; }
+      player.vx = Math.abs(player.vx);
     } else if (player.x >= right) {
       player.x = right;
-      if (player.isDashing) { player.isDashing = false; player.vx = 0; }
+      if (player.isDashing) { player.isDashing = false; }
+      player.vx = -Math.abs(player.vx);
     }
 
     if (player.y <= top) {
       player.y = top;
-      if (player.isDashing) { player.isDashing = false; player.vy = 0; }
+      if (player.isDashing) { player.isDashing = false; }
+      player.vy = Math.abs(player.vy);
     } else if (player.y >= bottom) {
       player.y = bottom;
-      if (player.isDashing) { player.isDashing = false; player.vy = 0; }
+      if (player.isDashing) { player.isDashing = false; }
+      player.vy = -Math.abs(player.vy);
     }
   }
 
@@ -524,10 +594,10 @@ class GameScene extends Phaser.Scene {
             p1.isDashing = false;
           }
         } 
-        // 瞬发型（承太郎）
-        else if (p1.isCharging) {
+        // 瞬发型（承太郎）：直接冲刺命中
+        else if (p1.isDashing) {
           this.dealDamage(p1, p2, char1.attack.damage);
-          p1.isCharging = false;
+          p1.isDashing = false;
         }
       }
       
@@ -542,9 +612,9 @@ class GameScene extends Phaser.Scene {
             this.dealDamage(p2, p1, char2.attack.damage + bonus);
             p2.isDashing = false;
           }
-        } else if (p2.isCharging) {
+        } else if (p2.isDashing) {
           this.dealDamage(p2, p1, char2.attack.damage);
-          p2.isCharging = false;
+          p2.isDashing = false;
         }
       }
 
@@ -628,8 +698,8 @@ class GameScene extends Phaser.Scene {
       if (dist < bullet.target.char.size / 2) {
         let finalDamage = bullet.damage;
         if (bullet.attacker.char.attack.distanceBonus) {
-          const launchDx = bullet.x - bullet.attacker.x;
-          const launchDy = bullet.y - bullet.attacker.y;
+          const launchDx = bullet.x - bullet.launchX;
+          const launchDy = bullet.y - bullet.launchY;
           const traveled = Math.sqrt(launchDx * launchDx + launchDy * launchDy);
           const bonusRatio = Math.min(traveled / bullet.attacker.char.attack.distanceBonus.optimalDistance, 1);
           finalDamage += bullet.attacker.char.attack.distanceBonus.maxBonus * bonusRatio;

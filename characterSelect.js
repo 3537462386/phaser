@@ -83,7 +83,7 @@ class CharacterSelectScene extends Phaser.Scene {
       
       card.addEventListener('mouseenter', () => {
         if (!card.classList.contains('disabled')) {
-           detailPanel.innerHTML = `<p style="text-align:center;margin-top:50px">点击选择: ${char.name}</p>`;
+           detailPanel.innerHTML = `<p style="text-align:center;margin-top:30px;color:#ccc">${char.name}</p>`;
         }
       });
     });
