@@ -12,7 +12,9 @@ const config = {
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width: 480,
         height: 800,
+        autoRound: true,
     },
+    pixelArt: true,
     physics: {
         default: 'arcade',
         arcade: { gravity: { y: 0 }, debug: false },

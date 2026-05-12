@@ -375,10 +375,35 @@ export default class GameScene extends Phaser.Scene {
 
         if (this.sys.game.device.input.touch) {
             this.createMobileControls();
-            // 移动端点击发射
-            this.input.on('pointerdown', () => {
-                if (this.gameState === 'PLAYING' && !this.ballLaunched) {
-                    this.launchBall();
+            // 移动端瞄准：触摸游戏区（非按钮区）→ 瞄准，松开 → 发射
+            this._mobileAiming = false;
+            this.input.on('pointerdown', (pointer) => {
+                if (this.gameState === 'PLAYING' && !this.ballLaunched && pointer.y < 600) {
+                    this._mobileAiming = true;
+                    this.isStickyHold = true;
+                    this.aimLine.setVisible(true);
+                    if (this.mainBall) {
+                        this.mainBall.body.setVelocity(0, 0);
+                    }
+                }
+            });
+            this.input.on('pointermove', (pointer) => {
+                if (this._mobileAiming && !this.ballLaunched) {
+                    // 根据触摸位置相对挡板计算瞄准角度
+                    const dx = pointer.x - this.paddle.x;
+                    const dy = pointer.y - this.paddle.y;
+                    if (dy < -20) {
+                        this.aimAngle = Math.atan2(dy, dx);
+                        this.aimAngle = Phaser.Math.Clamp(this.aimAngle, -Math.PI * 0.85, -Math.PI * 0.15);
+                    }
+                }
+            });
+            this.input.on('pointerup', () => {
+                if (this._mobileAiming) {
+                    this._mobileAiming = false;
+                    this.isStickyHold = false;
+                    this.aimLine.setVisible(false);
+                    this.launchBallFromAngle();
                 }
             });
         } else {
@@ -416,7 +441,11 @@ export default class GameScene extends Phaser.Scene {
     // ──────────────────────────────────────────
     showStartTip() {
         const W = this.scale.width;
-        this.tipText = this.add.text(W / 2, 620, '← → 移动  |  按住空格瞄准  |  松开发射', {
+        const isTouch = this.sys.game.device.input.touch;
+        const tipMsg = isTouch
+            ? '← → 移动  |  长按游戏区瞄准  |  松开发射'
+            : '← → 移动  |  按住空格瞄准  |  松开发射';
+        this.tipText = this.add.text(W / 2, 620, tipMsg, {
             fontSize: '11px', color: '#666688', fontFamily: '"Press Start 2P", monospace'
         }).setOrigin(0.5).setDepth(25);
         this.tweens.add({
@@ -578,9 +607,20 @@ export default class GameScene extends Phaser.Scene {
         panel.add(this.add.text(W / 2, H / 2 - 30, `波次 ${this.wave}   得分 ${this.score}`, { fontSize: '13px', color: '#ffee00' }).setOrigin(0.5));
         panel.add(this.add.text(W / 2, H / 2 - 5, `最高连击 ${this.maxCombo}`, { fontSize: '12px', color: '#ff9900' }).setOrigin(0.5));
         panel.add(this.add.text(W / 2, H / 2 + 18, this.getActiveTags() || '无流派激活', { fontSize: '12px', color: '#aaaaaa' }).setOrigin(0.5));
-        panel.add(this.add.text(W / 2, H / 2 + 50, '点击或按任意键重新开始', { fontSize: '12px', color: '#00ffcc' }).setOrigin(0.5));
-        panel.add(this.add.text(W / 2, H / 2 + 75, 'ESC → 返回菜单', { fontSize: '10px', color: '#224433' }).setOrigin(0.5));
-        this.input.once('pointerdown', () => this.scene.restart());
+
+        // 可点击的重试按钮（移动端友好）
+        const retryBtn = this.add.rectangle(W / 2, H / 2 + 52, 260, 40, 0x002200, 0)
+            .setStrokeStyle(2, 0x00ffcc, 1)
+            .setInteractive({ useHandCursor: true });
+        const retryTxt = this.add.text(W / 2, H / 2 + 52, '点击重新开始', {
+            fontSize: '14px', fontFamily: '"Press Start 2P", monospace', color: '#00ffcc',
+        }).setOrigin(0.5);
+        retryBtn.on('pointerover', () => { retryBtn.setStrokeStyle(2, 0xffee00, 1); retryTxt.setColor('#ffee00'); });
+        retryBtn.on('pointerout', () => { retryBtn.setStrokeStyle(2, 0x00ffcc, 1); retryTxt.setColor('#00ffcc'); });
+        retryBtn.on('pointerdown', () => this.scene.restart());
+
+        panel.add(this.add.text(W / 2, H / 2 + 85, 'ESC → 返回菜单', { fontSize: '10px', color: '#224433' }).setOrigin(0.5));
+
         this.input.keyboard.once('keydown', (e) => {
             if (e.keyCode === 27) this.scene.start('MenuScene');
             else this.scene.restart();
@@ -973,8 +1013,8 @@ export default class GameScene extends Phaser.Scene {
         this.balls.children.iterate(b => {
             if (!b || !b.body) return;
             const vx = b.body.velocity.x, vy = b.body.velocity.y;
-            const spd = Math.sqrt(vx * vx + vy * vy);
-            if (spd > 0) b.body.setVelocity(vx / spd * spd * final, vy / spd * spd * final);
+            if (vx === 0 && vy === 0) return;
+            b.body.setVelocity(vx * final, vy * final);
         });
     }
 
@@ -988,8 +1028,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.buffs.bounceAccel) {
             const extra = 1 + this.buffs.bounceAccel * 0.08;
             const vx = ball.body.velocity.x, vy = ball.body.velocity.y;
-            const spd = Math.sqrt(vx * vx + vy * vy);
-            if (spd > 0) b.body.setVelocity(vx / spd * spd * extra, vy / spd * spd * extra);
+            ball.body.setVelocity(vx * extra, vy * extra);
         }
 
         if (this.buffs.chaosCore) {
@@ -1007,6 +1046,20 @@ export default class GameScene extends Phaser.Scene {
         this.mainBall.setPosition(this.paddle.x, 650);
         this.mainBall.body.setVelocity(0, 0);
         this.aimLine.setVisible(true);
+    }
+
+    drawAimLine() {
+        this.aimLine.clear();
+        this.aimLine.lineStyle(2, 0x00ffcc, 0.6);
+        const startX = this.paddle.x;
+        const startY = 640;
+        const lineLen = 540;
+        const endX = startX + Math.cos(this.aimAngle) * lineLen;
+        const endY = startY + Math.sin(this.aimAngle) * lineLen;
+        this.aimLine.lineBetween(startX, startY, endX, endY);
+        // 瞄准点
+        this.aimLine.fillStyle(0x00ffcc, 0.8);
+        this.aimLine.fillCircle(endX, endY, 4);
     }
 
     releaseBall() {
@@ -1057,13 +1110,14 @@ export default class GameScene extends Phaser.Scene {
     spawnExtraBall(fromBall) {
         const vx = fromBall.body.velocity.x, vy = fromBall.body.velocity.y;
         const spd = Math.sqrt(vx * vx + vy * vy);
+        if (spd < 10) return; // 速度过低不分裂
         const extraSpd = this.buffs.wormhole ? spd * 1.2 : spd;
         const color = this.buffs.wormhole ? 0x8844ff : 0xaa44ff;
 
         const b = this.add.rectangle(fromBall.x + 8, fromBall.y, 11, 11, color);
         this.physics.add.existing(b);
         b.body.setCollideWorldBounds(true).setBounce(1, 1);
-        b.body.setVelocity(-vx * (extraSpd / spd), vy * (extraSpd / spd) - 30);
+        b.body.setVelocity(-vx / spd * extraSpd, vy / spd * extraSpd);
         this.balls.add(b);
         this.physics.add.collider(b, this.paddle, this.handlePaddleHit, null, this);
         this.physics.add.collider(b, this.bricks, this.handleBrickHit, null, this);
@@ -1091,7 +1145,6 @@ export default class GameScene extends Phaser.Scene {
         laser.setData('pierced', false);
         this.lasers.add(laser);
         laser.body.setVelocityY(-700);
-        this.physics.add.collider(laser, this.paddle);
         this.cameras.main.shake(35, 0.003);
     }
 
@@ -1334,24 +1387,30 @@ export default class GameScene extends Phaser.Scene {
                 this.stickBall();
             }
             if (this.keys.SPACE.isDown && this.isStickyHold) {
-                // 根据挡板位置更新瞄准
+                // 根据方向键更新瞄准角度
+                if (this.cursors.left.isDown || this.keys.A.isDown) {
+                    this.aimAngle = Math.max(this.aimAngle - 0.03, -Math.PI * 0.85);
+                } else if (this.cursors.right.isDown || this.keys.D.isDown) {
+                    this.aimAngle = Math.min(this.aimAngle + 0.03, -Math.PI * 0.15);
+                }
+                // 球跟随挡板
                 if (this.mainBall) {
                     this.mainBall.x = this.paddle.x;
                     this.mainBall.y = 650;
                 }
-                // 画瞄准线
-                this.aimLine.clear();
-                this.aimLine.lineStyle(2, 0x00ffcc, 0.6);
-                const startX = this.paddle.x;
-                const startY = 640;
-                this.aimLine.lineBetween(startX, startY, startX, 100);
-                // 瞄准点
-                this.aimLine.fillStyle(0x00ffcc, 0.8);
-                this.aimLine.fillCircle(startX, 100, 4);
+                // 画瞄准线（沿 aimAngle 方向）
+                this.drawAimLine();
             }
             if (Phaser.Input.Keyboard.JustUp(this.keys.SPACE)) {
                 this.releaseBall();
             }
+        } else if (this._mobileAiming && this.isStickyHold) {
+            // 移动端瞄准：球跟随挡板 + 画瞄准线
+            if (this.mainBall) {
+                this.mainBall.x = this.paddle.x;
+                this.mainBall.y = 650;
+            }
+            this.drawAimLine();
         }
 
         this.paddle.body.setVelocityX(dir * paddleSpeed);
@@ -1361,15 +1420,21 @@ export default class GameScene extends Phaser.Scene {
             this.mainBall.x = this.paddle.x;
         }
 
-        // 引力透镜
-        if (this.relics.gravity_lens && !this.ballLaunched) {
-            // 仅未发射时自动追随
+        // 引力透镜：发射状态下轻微吸引所有球
+        if (this.relics.gravity_lens && this.ballLaunched) {
+            this.balls.children.iterate(b => {
+                if (!b || !b.active) return;
+                const dx = this.paddle.x - b.x;
+                const dy = this.paddle.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 150 && dist > 10) {
+                    const force = 25 * (1 - dist / 150);
+                    b.body.setVelocityX(b.body.velocity.x + (dx / dist) * force);
+                }
+            });
         }
-
-        // 激光跟随挡板
         this.lasers.children.iterate(l => {
             if (!l || !l.active) return;
-            l.x = this.paddle.x;
             if (l.y < -20) l.destroy();
         });
 
@@ -1385,20 +1450,6 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
         });
-
-        // 引力透镜：发射状态下轻微吸引
-        if (this.relics.gravity_lens && this.ballLaunched) {
-            this.balls.children.iterate(b => {
-                if (!b || !b.active || b === this.mainBall) return;
-                const dx = this.paddle.x - b.x;
-                const dy = this.paddle.y - b.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < 150 && dist > 10) {
-                    const force = 25 * (1 - dist / 150);
-                    b.body.velocity.x += (dx / dist) * force;
-                }
-            });
-        }
 
         // 子弹越界
         this.enemyBullets.children.iterate(b => { if (b && b.y > 800) b.destroy(); });
