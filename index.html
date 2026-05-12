@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -132,7 +133,7 @@
             font-size: 0.75rem;
             padding: 4px 10px;
             border-radius: 4px;
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .game-status.online {
@@ -178,6 +179,7 @@
                 transition-duration: 0.01ms !important;
                 animation-duration: 0.01ms !important;
             }
+
             html {
                 scroll-behavior: auto;
             }
@@ -202,6 +204,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -223,6 +226,11 @@
             {
                 name: '中国象棋',
                 url: 'http://lw0710.top/chinese-chess',
+                status: 'testing'
+            },
+            {
+                name: '打砖块',
+                url: 'http://lw0710.top/block-breaker',
                 status: 'testing'
             },
             {
@@ -248,7 +256,7 @@
                 <a href="${game.url}" 
                    class="game-item ${game.url === '#' ? 'disabled' : ''}"
                    ${game.url === '#' ? 'aria-disabled="true" tabindex="0" onclick="return false;"' : 'rel="noopener noreferrer"'}
-                   aria-label="${game.name} - ${game.status === 'online' ?  '在线' : game.status === 'testing' ? '测试中' : '敬请期待'}">
+                   aria-label="${game.name} - ${game.status === 'online' ? '在线' : game.status === 'testing' ? '测试中' : '敬请期待'}">
                     <div class="game-info">
                         <span class="game-name">${game.name}</span>
                         <span class="game-url">${game.url === '#' ? 'wip…' : game.url}</span>
@@ -261,4 +269,5 @@
         document.addEventListener('DOMContentLoaded', renderGames);
     </script>
 </body>
+
 </html>
