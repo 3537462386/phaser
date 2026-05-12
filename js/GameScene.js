@@ -323,37 +323,28 @@
 
     createMuteButton() {
         const isMobile = this.isMobile;
-        const x = this.cameras.main.width - (isMobile ? 34 : 28);
-        const y = isMobile ? 38 : 28;
-        const size = isMobile ? 50 : 36;
-
-        // 像素风格背景
-        const btnBg = this.add.rectangle(x, y, size, size, 0x000000, 0.4);
-        const border = this.add.graphics();
-        border.lineStyle(2, 0xd4a355, 0.4);
-        border.strokeRect(x - size/2, y - size/2, size, size);
+        const W = this.cameras.main.width;
+        const hudW = isMobile ? Math.min(W - 48, 360) : 300;
+        const hudY = isMobile ? 48 : 42;
+        const x = W / 2 + hudW / 2 - (isMobile ? 24 : 20);
+        const y = hudY;
+        const hitSize = isMobile ? 44 : 34;
 
         // 音量图标
-        const icon = this.add.text(x, y - 1,
+        const icon = this.add.text(x, y,
             audioConfig.muted ? '🔇' : '🔊',
-            { fontSize: isMobile ? '18px' : '16px', resolution: 2 }
-        ).setOrigin(0.5);
+            { fontSize: isMobile ? '18px' : '16px', resolution: 2, color: '#f0d9b5' }
+        ).setOrigin(0.5).setDepth(10);
 
         // 交互区域
-        const hitArea = this.add.rectangle(x, y, size, size, 0xffffff, 0)
-            .setInteractive({ useHandCursor: true });
+        const hitArea = this.add.rectangle(x, y, hitSize, hitSize, 0xffffff, 0)
+            .setInteractive({ useHandCursor: true }).setDepth(11);
 
         hitArea.on('pointerover', () => {
-            btnBg.setFillStyle(0x000000, 0.6);
-            border.clear();
-            border.lineStyle(2, 0xd4a355, 0.8);
-            border.strokeRect(x - size/2, y - size/2, size, size);
+            icon.setAlpha(0.7);
         });
         hitArea.on('pointerout',  () => {
-            btnBg.setFillStyle(0x000000, 0.4);
-            border.clear();
-            border.lineStyle(2, 0xd4a355, 0.4);
-            border.strokeRect(x - size/2, y - size/2, size, size);
+            icon.setAlpha(1);
         });
         hitArea.on('pointerdown', () => {
             audioConfig.muted = !audioConfig.muted;
