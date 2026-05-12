@@ -347,7 +347,15 @@
             this.OFFSET_Y + from.y * this.CS
         );
 
-        if (eaten) this.addPieceToBoard(to.x, to.y, eaten.key);
+        if (eaten) {
+            // 恢复被吃棋子的 Man 逻辑对象
+            const eatenKey = eaten.key;
+            const classes = { 'j': J, 'c': C, 'm': M, 'p': P, 'z': Z, 'x': X, 's': S };
+            const type = eatenKey[0].toLowerCase();
+            const Cls = classes[type] || Man;
+            play.mans[eatenKey] = new Cls(eatenKey, to.x, to.y);
+            this.addPieceToBoard(to.x, to.y, eatenKey);
+        }
 
         play.my = -play.my;
         if (this.selectedPiece) this.clearPieceTint(this.selectedPiece);
@@ -718,21 +726,22 @@
                 g.strokeRect(bx - bw / 2, by - bh / 2, bw, bh);
             };
             drawBorder(0.6);
-            this.add.text(bx, by, label, {
+            const btnTxt = this.add.text(bx, by, label, {
                 fontSize: isMobile ? "14px" : "15px", color: "#f0d9b5",
                 fontFamily: com.pixelFont, resolution: 2
             }).setOrigin(0.5);
             bg.on("pointerover",  () => { bg.setFillStyle(0x5c4a38); drawBorder(1); });
             bg.on("pointerout",   () => { bg.setFillStyle(0x4a3728); drawBorder(0.6); });
             bg.on("pointerdown",  cb);
+            return [bg, g, btnTxt];
         };
 
         const gap = isMobile ? 62 : 68;
         const btnY = panelH / 2 - (isMobile ? 30 : 34);
-        makeBtn(-gap, btnY, "再来一局", () => location.reload());
-        makeBtn(gap, btnY, "主  菜  单", () => this.scene.start("MenuScene"));
+        const btn1 = makeBtn(-gap, btnY, "再来一局", () => location.reload());
+        const btn2 = makeBtn(gap, btnY, "主  菜  单", () => this.scene.start("MenuScene"));
 
-        panelContainer.add([panelBg, border, msgText]);
+        panelContainer.add([panelBg, border, msgText, ...btn1, ...btn2]);
 
         // 面板弹出动画
         this.tweens.add({

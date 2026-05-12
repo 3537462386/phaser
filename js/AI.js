@@ -41,7 +41,7 @@ AI.init = function (pace) {
     AI.treeDepth = difficulty.depth;
 
     AI.number = 0;
-    AI.setHistoryTable.length = 0;
+    AI.setHistoryTable.count = 0;
 
     var val = AI.getAlphaBeta(-99999, 99999, AI.treeDepth, com.arr2Clone(play.map), play.my);
     if (!val || val.value == -8888) {
@@ -191,7 +191,7 @@ AI.getAlphaBeta = function (A, B, depth, map, my) {
 
 //奖着法记录到历史表
 AI.setHistoryTable = function (txtMap, depth, value, my) {
-    AI.setHistoryTable.lenght++;
+    AI.setHistoryTable.count++;
     AI.historyTable[txtMap] = { depth: depth, value: value }
 }
 

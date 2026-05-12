@@ -612,18 +612,19 @@ class DarkChessScene extends Phaser.Scene {
             const g  = this.add.graphics();
             const draw = (a) => { g.clear(); g.lineStyle(2, 0xd4a355, a); g.strokeRect(bx-bw/2, by-bh/2, bw, bh); };
             draw(0.6);
-            this.add.text(bx, by, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5);
+            const btnTxt = this.add.text(bx, by, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5);
             bg.on('pointerover', () => { bg.setFillStyle(0x5c4a38); draw(1); });
             bg.on('pointerout',  () => { bg.setFillStyle(0x4a3728); draw(0.6); });
             bg.on('pointerdown', cb);
+            return [bg, g, btnTxt];
         };
 
         const gap = this.isMobile ? 62 : 68;
         const btnY = panelH/2 - (this.isMobile ? 30 : 34);
-        makeBtn(-gap, btnY, '再来一局', () => this.scene.restart());
-        makeBtn(gap, btnY, '主  菜  单', () => this.scene.start('MenuScene'));
+        const btn1 = makeBtn(-gap, btnY, '再来一局', () => this.scene.restart());
+        const btn2 = makeBtn(gap, btnY, '主  菜  单', () => this.scene.start('MenuScene'));
 
-        panelContainer.add([panelBg, border, msgText]);
+        panelContainer.add([panelBg, border, msgText, ...btn1, ...btn2]);
 
         // 面板弹出动画
         this.tweens.add({
