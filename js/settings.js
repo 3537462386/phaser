@@ -36,3 +36,21 @@ export const DIFFICULTY = {
     normal: { bulletSpeed: 300, hpMultiplier: 1 },
     hard:   { bulletSpeed: 420, hpMultiplier: 2 },
 };
+
+// 最高分管理
+const HIGH_SCORE_KEY = 'brickSurvivorHighScore';
+
+export function loadHighScore() {
+    try {
+        return parseInt(localStorage.getItem(HIGH_SCORE_KEY)) || 0;
+    } catch {
+        return 0;
+    }
+}
+
+export function saveHighScore(score) {
+    try {
+        const current = loadHighScore();
+        if (score > current) localStorage.setItem(HIGH_SCORE_KEY, String(score));
+    } catch {}
+}

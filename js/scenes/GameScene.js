@@ -1,7 +1,7 @@
 // ==========================================
 // 【游戏主场景】v0.4 - Combo + 道具系统 + 粘球瞄准 + 视觉增强
 // ==========================================
-import { loadSettings, BALL_SPEED, DIFFICULTY } from '../settings.js';
+import { loadSettings, BALL_SPEED, DIFFICULTY, loadHighScore, saveHighScore } from '../settings.js';
 
 // ──────────────────────────────────────────
 // 道具库（击杀砖块概率掉落，时效性buff）
@@ -596,6 +596,11 @@ export default class GameScene extends Phaser.Scene {
 
     showGameOver() {
         const W = this.scale.width, H = this.scale.height;
+
+        // 保存最高分
+        const isNewRecord = this.score > loadHighScore();
+        saveHighScore(this.score);
+
         const panel = this.add.container(0, 0).setDepth(50);
         panel.add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75));
         panel.add(this.add.rectangle(W / 2 + 5, H / 2 + 5, 340, 240, 0x000000));
@@ -605,7 +610,10 @@ export default class GameScene extends Phaser.Scene {
             color: '#ff2244', shadow: { x: 3, y: 3, color: '#660000', blur: 0, fill: true },
         }).setOrigin(0.5));
         panel.add(this.add.text(W / 2, H / 2 - 30, `波次 ${this.wave}   得分 ${this.score}`, { fontSize: '13px', color: '#ffee00' }).setOrigin(0.5));
-        panel.add(this.add.text(W / 2, H / 2 - 5, `最高连击 ${this.maxCombo}`, { fontSize: '12px', color: '#ff9900' }).setOrigin(0.5));
+        if (isNewRecord) {
+            panel.add(this.add.text(W / 2, H / 2 - 10, '★ 新纪录！★', { fontSize: '14px', color: '#ff6600', fontFamily: '"Press Start 2P", monospace' }).setOrigin(0.5));
+        }
+        panel.add(this.add.text(W / 2, H / 2 + 8, `最高连击 ${this.maxCombo}`, { fontSize: '12px', color: '#ff9900' }).setOrigin(0.5));
         panel.add(this.add.text(W / 2, H / 2 + 18, this.getActiveTags() || '无流派激活', { fontSize: '12px', color: '#aaaaaa' }).setOrigin(0.5));
 
         // 可点击的重试按钮（移动端友好）
@@ -619,7 +627,21 @@ export default class GameScene extends Phaser.Scene {
         retryBtn.on('pointerout', () => { retryBtn.setStrokeStyle(2, 0x00ffcc, 1); retryTxt.setColor('#00ffcc'); });
         retryBtn.on('pointerdown', () => this.scene.restart());
 
-        panel.add(this.add.text(W / 2, H / 2 + 85, 'ESC → 返回菜单', { fontSize: '10px', color: '#224433' }).setOrigin(0.5));
+        panel.add(retryBtn);
+        panel.add(retryTxt);
+
+        const escBtn = this.add.rectangle(W / 2, H / 2 + 85, 160, 28, 0x000000, 0)
+            .setStrokeStyle(1, 0x224433, 1)
+            .setInteractive({ useHandCursor: true });
+        const escTxt = this.add.text(W / 2, H / 2 + 85, '返回菜单', {
+            fontSize: '11px', fontFamily: '"Press Start 2P", monospace', color: '#224433',
+        }).setOrigin(0.5);
+        escBtn.on('pointerover', () => { escTxt.setColor('#ff4466'); });
+        escBtn.on('pointerout', () => { escTxt.setColor('#224433'); });
+        escBtn.on('pointerdown', () => this.scene.start('MenuScene'));
+
+        panel.add(escBtn);
+        panel.add(escTxt);
 
         this.input.keyboard.once('keydown', (e) => {
             if (e.keyCode === 27) this.scene.start('MenuScene');
@@ -770,19 +792,22 @@ export default class GameScene extends Phaser.Scene {
     handleBrickHit(ball, brick) {
         if (!brick || !brick.active) return;
 
-        // 虚空裂隙
-        if (this.relics.void_rift && Math.random() < 0.15) return;
+        // 虚空裂隙：15% 概率无视碰撞（球穿过砖块，不扣血）
+        if (this.relics.void_rift && Math.random() < 0.15) {
+            this.spawnBrickParticles(brick.x, brick.y, 0xaa44ff);
+            return;
+        }
 
         const type  = brick.getData('type');
         const power = this.getBallDamage();
         const hp    = brick.getData('hp') - power;
         brick.setData('hp', hp);
 
-        // 火球穿透
+        // 火球穿透：火球击杀砖块时不做 hitstop（视觉穿透感）
         const isFireball = this.buffs.fireball && ball === this.mainBall;
         const destroyed = hp <= 0;
 
-        if (!isFireball || !destroyed) {
+        if (!(isFireball && destroyed)) {
             this.hitStop(45);
         }
 
@@ -839,18 +864,24 @@ export default class GameScene extends Phaser.Scene {
     }
 
     chainExplosion(x, y) {
+        // 先收集受影响的砖块，再统一处理（避免遍历时修改列表）
+        const affected = [];
         this.bricks.children.iterate(brick => {
             if (!brick || !brick.active) return;
             const dx = Math.abs(brick.x - x);
             const dy = Math.abs(brick.y - y);
-            if (dx <= 80 && dy <= 60 && dx + dy > 0) {
-                const hp = brick.getData('hp') - 1;
-                brick.setData('hp', hp);
-                this.spawnBrickParticles(brick.x, brick.y, 0xff6600);
-                if (hp <= 0) {
-                    if (brick.getData('type') === 'explosive') this.spawnBullet(brick.x, brick.y);
-                    brick.destroy();
-                }
+            if (dx <= 80 && dy <= 60 && (dx + dy > 0)) {
+                affected.push(brick);
+            }
+        });
+        affected.forEach(brick => {
+            if (!brick.active) return;
+            const hp = brick.getData('hp') - 1;
+            brick.setData('hp', hp);
+            this.spawnBrickParticles(brick.x, brick.y, 0xff6600);
+            if (hp <= 0) {
+                if (brick.getData('type') === 'explosive') this.spawnBullet(brick.x, brick.y);
+                brick.destroy();
             }
         });
     }
@@ -877,11 +908,15 @@ export default class GameScene extends Phaser.Scene {
 
         const drop = this.add.rectangle(x, y, 26, 26, 0x000000, 0).setDepth(16);
         drop.setData('powerupId', powerup.id);
-        this.physics.add.existing(drop, true);
+        drop.setData('iconObj', icon);
+        drop.setData('glowObj', glow);
+        this.physics.add.existing(drop, false);
+        drop.body.setVelocityY(60);
+        drop.body.setBounce(0);
         this.powerups.add(drop);
 
-        // 5秒后自动消失
-        this.time.delayedCall(5000, () => {
+        // 8秒后自动消失
+        this.time.delayedCall(8000, () => {
             if (drop.active) {
                 icon.destroy();
                 glow.destroy();
@@ -897,6 +932,12 @@ export default class GameScene extends Phaser.Scene {
 
         const x = drop.x, y = drop.y;
 
+        // 销毁关联的图标和光晕
+        const icon = drop.getData('iconObj');
+        const glow = drop.getData('glowObj');
+        if (icon) icon.destroy();
+        if (glow) glow.destroy();
+
         // 清除同类型旧道具
         if (this.activePowerups[powerupId]) {
             if (powerup.remove) powerup.remove(this);
@@ -911,7 +952,7 @@ export default class GameScene extends Phaser.Scene {
         this.activePowerups[powerupId] = true;
 
         // 掉落物特效
-        this.powerups.getChildren().forEach(c => { if (c.x === x && c.y === y) c.destroy(); });
+        drop.destroy();
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
             const p = this.add.rectangle(x, y, 4, 4, powerup.color).setDepth(22);
@@ -956,7 +997,11 @@ export default class GameScene extends Phaser.Scene {
 
         const drop = this.add.rectangle(x, y, 28, 28, 0x000000, 0).setDepth(16);
         drop.setData('relicId', relic.id);
-        this.physics.add.existing(drop, true);
+        drop.setData('iconObj', icon);
+        drop.setData('glowObj', glow);
+        this.physics.add.existing(drop, false);
+        drop.body.setVelocityY(50);
+        drop.body.setBounce(0);
         this.relicDrops.add(drop);
     }
 
@@ -968,7 +1013,13 @@ export default class GameScene extends Phaser.Scene {
         this.relics[relicId] = true;
 
         const x = drop.x, y = drop.y;
-        this.relicDrops.getChildren().forEach(c => { if (c.x === x && c.y === y) c.destroy(); });
+
+        // 销毁关联的图标和光晕
+        const icon = drop.getData('iconObj');
+        const glow = drop.getData('glowObj');
+        if (icon) icon.destroy();
+        if (glow) glow.destroy();
+        drop.destroy();
         for (let i = 0; i < 12; i++) {
             const angle = (i / 12) * Math.PI * 2;
             const p = this.add.rectangle(x, y, 4, 4, relic.color).setDepth(22);
@@ -1029,6 +1080,14 @@ export default class GameScene extends Phaser.Scene {
             const extra = 1 + this.buffs.bounceAccel * 0.08;
             const vx = ball.body.velocity.x, vy = ball.body.velocity.y;
             ball.body.setVelocity(vx * extra, vy * extra);
+        }
+
+        // 球速上限：防止穿墙
+        const maxSpeed = 800;
+        const curVx = ball.body.velocity.x, curVy = ball.body.velocity.y;
+        const curSpeed = Math.sqrt(curVx * curVx + curVy * curVy);
+        if (curSpeed > maxSpeed) {
+            ball.body.setVelocity(curVx / curSpeed * maxSpeed, curVy / curSpeed * maxSpeed);
         }
 
         if (this.buffs.chaosCore) {
@@ -1236,13 +1295,16 @@ export default class GameScene extends Phaser.Scene {
         const shuffled = Phaser.Math.RND.shuffle([...BUFF_POOL]);
         const choices  = shuffled.slice(0, Math.min(pickCount, BUFF_POOL.length));
 
+        // 动态计算卡片高度和间距，确保不超出屏幕
+        const cardH = choices.length > 3 ? 105 : 130;
+        const cardGap = choices.length > 3 ? 115 : 155;
         choices.forEach((buff, i) => {
-            this.createBuffCard(W / 2, 170 + i * 155, buff, i);
+            this.createBuffCard(W / 2, 170 + i * cardGap, buff, i, cardH);
         });
     }
 
-    createBuffCard(x, y, buff, idx) {
-        const w = 340, h = 130;
+    createBuffCard(x, y, buff, idx, h = 130) {
+        const w = 340;
         const container = this.upgradeContainer;
         const tagCfg    = TAG_CONFIG[buff.tag];
         const txtColor  = '#' + buff.color.toString(16).padStart(6, '0');
@@ -1453,6 +1515,28 @@ export default class GameScene extends Phaser.Scene {
 
         // 子弹越界
         this.enemyBullets.children.iterate(b => { if (b && b.y > 800) b.destroy(); });
+
+        // 掉落物图标/光晕跟随物理体
+        this._syncDropVisuals(this.powerups);
+        this._syncDropVisuals(this.relicDrops);
+    }
+
+    _syncDropVisuals(group) {
+        group.children.iterate(d => {
+            if (!d || !d.active) return;
+            const icon = d.getData('iconObj');
+            const glow = d.getData('glowObj');
+            if (icon) icon.x = d.x;
+            if (icon) icon.y = d.y - 6;
+            if (glow) glow.x = d.x;
+            if (glow) glow.y = d.y;
+            // 掉出屏幕则销毁
+            if (d.y > 820) {
+                if (icon) icon.destroy();
+                if (glow) glow.destroy();
+                d.destroy();
+            }
+        });
     }
 
     // ──────────────────────────────────────────

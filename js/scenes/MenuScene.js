@@ -1,6 +1,8 @@
 // ==========================================
 // 【主菜单场景】
 // ==========================================
+import { loadHighScore } from '../settings.js';
+
 export default class MenuScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MenuScene' });
@@ -58,6 +60,14 @@ export default class MenuScene extends Phaser.Scene {
         g.fillRect(W / 2 - 130, 252, 260, 3);
         g.fillStyle(0x00ffcc, 0.5);
         g.fillRect(W / 2 - 130, 256, 260, 1);
+
+        // 最高分
+        const highScore = loadHighScore();
+        if (highScore > 0) {
+            this.add.text(W / 2, 290, `最高分  ${highScore}`, {
+                fontSize: '14px', fontFamily: '"Press Start 2P", monospace', color: '#ff9900',
+            }).setOrigin(0.5);
+        }
 
         // 按钮
         this.createButton(W / 2, 395, '开 始 游 戏', 0x001100, 0x002a00, () => {
