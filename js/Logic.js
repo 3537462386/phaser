@@ -73,7 +73,7 @@ com.isMobileViewport = function () {
     return shortSide <= 640 || coarsePointer;
 };
 
-com.pixelFont = "'Zpix', 'PixelMplus10', 'Fusion Pixel', monospace";
+com.pixelFont = "'Zpix', monospace";
 
 com.sideName = function (side) {
     return side === 1 ? '红方' : '黑方';
