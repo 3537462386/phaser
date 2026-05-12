@@ -38,6 +38,7 @@ class DarkChessScene extends Phaser.Scene {
         this.setupBoard();
         this.drawBoard();
         this.renderPieces();
+        this.createMuteButton();
         this.createBackButton();
     }
 
@@ -86,17 +87,7 @@ class DarkChessScene extends Phaser.Scene {
     drawBackground() {
         const W = this.cameras.main.width;
         const H = this.cameras.main.height;
-        const g = this.add.graphics();
-        const tileSize = this.isMobile ? 16 : 20;
-        g.fillStyle(0x2c1e14, 1);
-        g.fillRect(0, 0, W, H);
-        for (let y = 0; y < H; y += tileSize) {
-            for (let x = 0; x < W; x += tileSize) {
-                const even = ((x / tileSize) + (y / tileSize)) % 2 === 0;
-                g.fillStyle(even ? 0x3d2a1a : 0x352417, 1);
-                g.fillRect(x, y, tileSize, tileSize);
-            }
-        }
+        com.drawPixelBackground(this, W, H);
     }
 
     // ─────────────────────────────────────────────
@@ -196,16 +187,7 @@ class DarkChessScene extends Phaser.Scene {
         let tint = null;
 
         if (cell.flipped) {
-            const charMap = {
-                j: { red: '帅', black: '将' },
-                c: { red: '车', black: '車' },
-                m: { red: '马', black: '馬' },
-                p: { red: '炮', black: '砲' },
-                x: { red: '相', black: '象' },
-                s: { red: '仕', black: '士' },
-                z: { red: '兵', black: '卒' },
-            };
-            const entry = charMap[cell.type];
+            const entry = com.charMap[cell.type];
             label = entry ? (cell.side === 'red' ? entry.red : entry.black) : '?';
             textColor = cell.side === 'red' ? '#ff3333' : '#111111';
             if (isSelected) tint = 0xffdd00;
@@ -484,8 +466,7 @@ class DarkChessScene extends Phaser.Scene {
         const cell = this.grid[tr][tc];
         const sz = Math.floor(CS * 0.82);
         const tmpImg = this.add.image(fromX, fromY, 'chess-piece').setDisplaySize(sz, sz).setDepth(10);
-        const charMap = { j:{red:'帅',black:'将'},c:{red:'车',black:'車'},m:{red:'马',black:'馬'},p:{red:'炮',black:'砲'},x:{red:'相',black:'象'},s:{red:'仕',black:'士'},z:{red:'兵',black:'卒'} };
-        const entry = charMap[cell.type];
+        const entry = com.charMap[cell.type];
         const lbl = entry ? (cell.side==='red' ? entry.red : entry.black) : '?';
         const tmpTxt = this.add.text(fromX, fromY - 2, lbl, {
             fontSize: Math.floor(sz*0.42)+'px', color: cell.side==='red'?'#ff3333':'#111111',
@@ -604,37 +585,83 @@ class DarkChessScene extends Phaser.Scene {
         const panelW = Math.min(W - 40, 300);
         const panelH = this.isMobile ? 160 : 180;
 
-        this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.6).setDepth(20);
-        this.add.rectangle(W/2, H/2, panelW, panelH, 0x3d2a1a).setDepth(21);
-        const border = this.add.graphics().setDepth(21);
-        border.lineStyle(2, 0xd4a355, 1);
-        border.strokeRect(W/2 - panelW/2, H/2 - panelH/2, panelW, panelH);
+        // 半透明遮罩（淡入）
+        const overlay = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0).setDepth(20);
+        this.tweens.add({ targets: overlay, fillAlpha: 0.6, duration: 300 });
 
-        this.add.text(W/2, H/2 - panelH/2 + (this.isMobile ? 36 : 44), msg, {
+        // 面板容器（缩放淡入）
+        const panelContainer = this.add.container(W/2, H/2).setDepth(21).setScale(0.7).setAlpha(0);
+
+        const panelBg = this.add.rectangle(0, 0, panelW, panelH, 0x3d2a1a);
+        const border = this.add.graphics();
+        border.lineStyle(2, 0xd4a355, 1);
+        border.strokeRect(-panelW/2, -panelH/2, panelW, panelH);
+
+        const msgText = this.add.text(0, -panelH/2 + (this.isMobile ? 36 : 44), msg, {
             fontSize  : this.isMobile ? '15px' : '17px',
             color     : '#f0d9b5',
             fontFamily: com.pixelFont,
             wordWrap  : { width: panelW - 32 },
             align     : 'center',
             resolution: 2
-        }).setOrigin(0.5).setDepth(22);
+        }).setOrigin(0.5);
 
-        const makeBtn = (x, y, label, cb) => {
+        const makeBtn = (bx, by, label, cb) => {
             const bw = this.isMobile ? 104 : 114, bh = this.isMobile ? 34 : 38;
-            const bg = this.add.rectangle(x, y, bw, bh, 0x4a3728).setDepth(22).setInteractive({ useHandCursor: true });
-            const g  = this.add.graphics().setDepth(22);
-            const draw = (a) => { g.clear(); g.lineStyle(2, 0xd4a355, a); g.strokeRect(x-bw/2, y-bh/2, bw, bh); };
+            const bg = this.add.rectangle(bx, by, bw, bh, 0x4a3728).setInteractive({ useHandCursor: true });
+            const g  = this.add.graphics();
+            const draw = (a) => { g.clear(); g.lineStyle(2, 0xd4a355, a); g.strokeRect(bx-bw/2, by-bh/2, bw, bh); };
             draw(0.6);
-            this.add.text(x, y, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5).setDepth(23);
+            this.add.text(bx, by, label, { fontSize: this.isMobile?'14px':'15px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5);
             bg.on('pointerover', () => { bg.setFillStyle(0x5c4a38); draw(1); });
             bg.on('pointerout',  () => { bg.setFillStyle(0x4a3728); draw(0.6); });
             bg.on('pointerdown', cb);
         };
 
         const gap = this.isMobile ? 62 : 68;
-        const btnY = H/2 + panelH/2 - (this.isMobile ? 30 : 34);
-        makeBtn(W/2 - gap, btnY, '再来一局', () => this.scene.restart());
-        makeBtn(W/2 + gap, btnY, '主  菜  单', () => this.scene.start('MenuScene'));
+        const btnY = panelH/2 - (this.isMobile ? 30 : 34);
+        makeBtn(-gap, btnY, '再来一局', () => this.scene.restart());
+        makeBtn(gap, btnY, '主  菜  单', () => this.scene.start('MenuScene'));
+
+        panelContainer.add([panelBg, border, msgText]);
+
+        // 面板弹出动画
+        this.tweens.add({
+            targets: panelContainer,
+            scaleX: 1, scaleY: 1, alpha: 1,
+            duration: 350,
+            ease: 'Back.easeOut',
+            delay: 150
+        });
+    }
+
+    // ─────────────────────────────────────────────
+    //  静音按钮（与 GameScene 一致：顶部区域右端，无边框，仅图标）
+    // ─────────────────────────────────────────────
+    createMuteButton() {
+        const isMobile = this.isMobile;
+        const W = this.cameras.main.width;
+        const { ox, oy } = this.boardOffset();
+        const x = W - (isMobile ? 24 : 20);
+        const y = oy - this.PAD - (isMobile ? 18 : 16);
+        const hitSize = isMobile ? 44 : 34;
+
+        const icon = this.add.text(x, y,
+            audioConfig.muted ? '🔇' : '🔊',
+            { fontSize: isMobile ? '18px' : '16px', resolution: 2, color: '#f0d9b5' }
+        ).setOrigin(0.5).setDepth(10);
+
+        const hitArea = this.add.rectangle(x, y, hitSize, hitSize, 0xffffff, 0)
+            .setInteractive({ useHandCursor: true }).setDepth(11);
+
+        hitArea.on('pointerover', () => icon.setAlpha(0.7));
+        hitArea.on('pointerout',  () => icon.setAlpha(1));
+        hitArea.on('pointerdown', () => {
+            audioConfig.muted = !audioConfig.muted;
+            icon.setText(audioConfig.muted ? '🔇' : '🔊');
+            const bgm = this.sound.get('bgm');
+            if (bgm) bgm.setVolume(audioConfig.muted ? 0 : audioConfig.bgmVolume);
+        });
     }
 
     // ─────────────────────────────────────────────
@@ -643,16 +670,22 @@ class DarkChessScene extends Phaser.Scene {
     createBackButton() {
         const isMobile = this.isMobile;
         const { ox, oy } = this.boardOffset();
-        const x = ox - this.PAD + (isMobile ? 38 : 36);
+        const x = ox - this.PAD + (isMobile ? 22 : 20);
         const y = oy - this.PAD - (isMobile ? 18 : 16);
-        const w = isMobile ? 76 : 72, h = isMobile ? 32 : 28;
+        const hitSize = isMobile ? 44 : 34;
 
-        const bg = this.add.rectangle(x, y, w, h, 0x4a3728).setDepth(5).setInteractive({ useHandCursor: true });
-        const g  = this.add.graphics().setDepth(5);
-        g.lineStyle(1, 0xd4a355, 0.5);
-        g.strokeRect(x-w/2, y-h/2, w, h);
-        this.add.text(x, y, '返回', { fontSize: isMobile?'13px':'12px', color:'#f0d9b5', fontFamily: com.pixelFont, resolution:2 }).setOrigin(0.5).setDepth(6);
-        bg.on('pointerdown', () => this.scene.start('MenuScene'));
+        const icon = this.add.text(x, y, '◀', {
+            fontSize: isMobile ? '18px' : '16px',
+            resolution: 2,
+            color: '#f0d9b5'
+        }).setOrigin(0.5).setDepth(10);
+
+        const hitArea = this.add.rectangle(x, y, hitSize, hitSize, 0xffffff, 0)
+            .setInteractive({ useHandCursor: true }).setDepth(11);
+
+        hitArea.on('pointerover', () => icon.setAlpha(0.7));
+        hitArea.on('pointerout',  () => icon.setAlpha(1));
+        hitArea.on('pointerdown', () => this.scene.start('MenuScene'));
     }
 
     // ─────────────────────────────────────────────

@@ -58,14 +58,6 @@ com.filterLegalMoves = function(man, moves, map) {
 
 com.gambit = [];
 
-com.createMove = function(map, x1, y1, x2, y2) {
-    return `(${x1},${y1}) -> (${x2},${y2})`;
-};
-
-com.get = function(id) {
-    return document.getElementById(id) || { set innerHTML(v) { console.log("UI Update:", v) } };
-};
-
 com.isMobileViewport = function () {
     if (typeof window === 'undefined') return false;
     const shortSide = Math.min(window.innerWidth || 0, window.innerHeight || 0);
@@ -74,6 +66,92 @@ com.isMobileViewport = function () {
 };
 
 com.pixelFont = "'Zpix', monospace";
+
+com.charMap = {
+    j: { red: '帅', black: '将' },
+    c: { red: '车', black: '車' },
+    m: { red: '马', black: '馬' },
+    p: { red: '炮', black: '砲' },
+    x: { red: '相', black: '象' },
+    s: { red: '仕', black: '士' },
+    z: { red: '兵', black: '卒' }
+};
+
+com.getPieceLabel = function(type, isRed) {
+    const entry = com.charMap[type];
+    return entry ? (isRed ? entry.red : entry.black) : type;
+};
+
+/**
+ * 检测指定方的将/帅是否被对方将军
+ * @param {number} side  1=红方, -1=黑方
+ * @param {Array} map    棋盘地图
+ * @returns {boolean}    true = 被将军
+ */
+com.isInCheck = function(side, map) {
+    // 找到该方的将/帅位置
+    const generalKey = side === 1 ? 'j' : 'J';
+    let gx = -1, gy = -1;
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 9; x++) {
+            if (map[y][x] && map[y][x][0] === generalKey[0] &&
+                (map[y][x][0] === map[y][x][0].toLowerCase()) === (side === 1)) {
+                gx = x; gy = y;
+            }
+        }
+    }
+    if (gx < 0) return false; // 将帅不存在（理论上不应发生）
+
+    // 检查对方所有棋子是否能攻击到将帅位置
+    for (const key in play.mans) {
+        const man = play.mans[key];
+        if (man.my === side) continue; // 跳过己方棋子
+        const moves = man.bl(map);
+        if (moves.some(([mx, my]) => mx === gx && my === gy)) return true;
+    }
+    return false;
+};
+
+/**
+ * 绘制像素风格背景（深色木纹 + 顶底渐变）
+ * 供 MenuScene / GameScene / DarkChessScene 复用
+ * @param {Phaser.Scene} scene  场景实例
+ * @param {number} width   画布宽度
+ * @param {number} height  画布高度
+ */
+com.drawPixelBackground = function(scene, width, height) {
+    const isMobile = com.isMobileViewport();
+    const tileSize = isMobile ? 16 : 20;
+
+    const graphics = scene.add.graphics();
+
+    // 深色木纹底
+    graphics.fillStyle(0x2c1e14, 1);
+    graphics.fillRect(0, 0, width, height);
+
+    // 棋盘格纹理
+    for (let y = 0; y < height; y += tileSize) {
+        for (let x = 0; x < width; x += tileSize) {
+            const isEven = ((x / tileSize) + (y / tileSize)) % 2 === 0;
+            graphics.fillStyle(isEven ? 0x3d2a1a : 0x352417, 1);
+            graphics.fillRect(x, y, tileSize, tileSize);
+        }
+    }
+
+    // 顶部渐变
+    const topFade = scene.add.graphics();
+    for (let i = 0; i < 60; i++) {
+        topFade.fillStyle(0x1a1208, 1 - i / 60);
+        topFade.fillRect(0, i, width, 1);
+    }
+
+    // 底部渐变
+    const bottomFade = scene.add.graphics();
+    for (let i = 0; i < 60; i++) {
+        bottomFade.fillStyle(0x1a1208, i / 60);
+        bottomFade.fillRect(0, height - 60 + i, width, 1);
+    }
+};
 
 com.sideName = function (side) {
     return side === 1 ? '红方' : '黑方';

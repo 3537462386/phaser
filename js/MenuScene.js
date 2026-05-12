@@ -17,7 +17,7 @@ class MenuScene extends Phaser.Scene {
         const isMobile = com.isMobileViewport();
 
         // 绘制像素风格背景
-        this.drawPixelBackground();
+        com.drawPixelBackground(this, width, height);
 
         // 背景音乐：全局唯一，场景切换后继续播放
         if (!this.sound.get('bgm')) {
@@ -66,13 +66,6 @@ class MenuScene extends Phaser.Scene {
         // 标题下方小装饰
         this.drawTitleDecor(cx, titleBgY + titleBgH/2 + 8, isMobile);
 
-        this.add.text(cx, titleBgY + (isMobile ? 28 : 30), '象棋 / 暗棋', {
-            fontSize: isMobile ? '13px' : '14px',
-            color: '#d4a355',
-            fontFamily: com.pixelFont,
-            resolution: 2
-        }).setOrigin(0.5);
-
         // 菜单选项
         const menuStartY = isMobile ? height * 0.37 : height * 0.42;
         
@@ -92,7 +85,7 @@ class MenuScene extends Phaser.Scene {
 
         this.createMenuItem(cx, menuStartY + btnGap * 3, btnWidth, btnHeight, '游戏设置', () => {
             this.toggleSettings();
-        });
+        }, 'settingsBtn');
 
         // 设置面板 (初始隐藏)
         this.setupSettingsPanel(isMobile, scaleFactor);
@@ -159,43 +152,7 @@ class MenuScene extends Phaser.Scene {
         }
     }
 
-    drawPixelBackground() {
-        const width = this.cameras.main.width;
-        const height = this.cameras.main.height;
-        const isMobile = com.isMobileViewport();
-
-        const graphics = this.add.graphics();
-        const tileSize = isMobile ? 16 : 20;
-        
-        // 深色木纹底
-        graphics.fillStyle(0x2c1e14, 1);
-        graphics.fillRect(0, 0, width, height);
-        
-        // 棋盘格纹理
-        for (let y = 0; y < height; y += tileSize) {
-            for (let x = 0; x < width; x += tileSize) {
-                const isEven = ((x / tileSize) + (y / tileSize)) % 2 === 0;
-                graphics.fillStyle(isEven ? 0x3d2a1a : 0x352417, 1);
-                graphics.fillRect(x, y, tileSize, tileSize);
-            }
-        }
-        
-        // 顶部渐变
-        const topFade = this.add.graphics();
-        for (let i = 0; i < 60; i++) {
-            topFade.fillStyle(0x1a1208, 1 - i / 60);
-            topFade.fillRect(0, i, width, 1);
-        }
-
-        // 底部渐变
-        const bottomFade = this.add.graphics();
-        for (let i = 0; i < 60; i++) {
-            bottomFade.fillStyle(0x1a1208, i / 60);
-            bottomFade.fillRect(0, height - 60 + i, width, 1);
-        }
-    }
-
-    createMenuItem(x, y, w, h, text, callback) {
+    createMenuItem(x, y, w, h, text, callback, refName) {
         const bg = this.add.rectangle(x, y, w, h, 0x4a3728)
             .setInteractive({ useHandCursor: true });
         bg.setDepth(0.5);
@@ -240,12 +197,16 @@ class MenuScene extends Phaser.Scene {
             callback();
         });
 
-        this.add.text(x, y, text, {
+        const label = this.add.text(x, y, text, {
             fontSize: (h >= 56 ? '20px' : '19px'),
             color: '#f0d9b5',
             fontFamily: com.pixelFont,
             resolution: 2
         }).setOrigin(0.5).setDepth(2);
+
+        // 存储引用以便后续更新文字
+        if (refName) this._menuButtons = this._menuButtons || {};
+        if (refName) this._menuButtons[refName] = { label, bg, shadow, borderG, highlight, notch };
     }
 
     setupSettingsPanel(isMobile, scaleFactor) {
@@ -281,14 +242,22 @@ class MenuScene extends Phaser.Scene {
         const btnNormal = this.createSettingButton(cx, btnY, btnW, btnH, '普通', play.level === 'normal', () => this.setLevel('normal'));
         const btnHard   = this.createSettingButton(cx + btnGap, btnY, btnW, btnH, '困难', play.level === 'hard', () => this.setLevel('hard'));
 
-        const muteBtn = this.createSettingButton(cx, volY, isMobile ? 132 : 118, isMobile ? 36 : 32, audioConfig.muted ? '开启声音' : '静音', audioConfig.muted, () => {
+        // 声音开关（图标风格，与游戏内一致）
+        const muteIcon = this.add.text(cx, volY,
+            audioConfig.muted ? '🔇 静音' : '🔊 声音',
+            { fontSize: isMobile ? '15px' : '16px', color: '#f0d9b5', fontFamily: com.pixelFont, resolution: 2 }
+        ).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+        muteIcon.on('pointerover', () => muteIcon.setAlpha(0.7));
+        muteIcon.on('pointerout',  () => muteIcon.setAlpha(1));
+        muteIcon.on('pointerdown', () => {
             audioConfig.muted = !audioConfig.muted;
             const bgm = this.sound.get('bgm');
             if (bgm) bgm.setVolume(audioConfig.muted ? 0 : audioConfig.bgmVolume);
-            this.scene.restart();
+            muteIcon.setText(audioConfig.muted ? '🔇 静音' : '🔊 声音');
         });
 
-        this.settingsGroup.addMultiple([bg, panelBorder, diffText, ...btnEasy, ...btnNormal, ...btnHard, ...muteBtn]);
+        this.settingsGroup.addMultiple([bg, panelBorder, diffText, ...btnEasy, ...btnNormal, ...btnHard, muteIcon]);
         this.settingsGroup.setVisible(false);
     }
 
@@ -321,7 +290,12 @@ class MenuScene extends Phaser.Scene {
     }
 
     toggleSettings() {
-        this.settingsGroup.setVisible(!this.settingsGroup.getChildren()[0].visible);
+        const isVisible = this.settingsGroup.getChildren()[0].visible;
+        this.settingsGroup.setVisible(!isVisible);
+        // 更新按钮文字
+        if (this._menuButtons && this._menuButtons.settingsBtn) {
+            this._menuButtons.settingsBtn.label.setText(isVisible ? '游戏设置' : '关闭设置');
+        }
     }
 
     setLevel(level) {

@@ -74,7 +74,7 @@
         const boardY = Math.floor((sceneH - (boardH + PAD * 2)) / 2);
 
         // 绘制棋盘格背景（填满整个画布）
-        this.drawPixelBackground(sceneW, sceneH);
+        com.drawPixelBackground(this, sceneW, sceneH);
 
         this.OFFSET_X = boardX + PAD;
         this.OFFSET_Y = boardY + PAD;
@@ -93,42 +93,6 @@
         this.createUndoButton();
         this.createMuteButton();
         this.createBoardInputLayer();
-    }
-
-    drawPixelBackground(drawWidth, drawHeight) {
-        const width = drawWidth || this.SCENE_W;
-        const height = drawHeight || this.SCENE_H;
-        const isMobile = com.isMobileViewport();
-        const tileSize = isMobile ? 16 : 20;
-
-        const graphics = this.add.graphics();
-
-        // 深色木纹底
-        graphics.fillStyle(0x2c1e14, 1);
-        graphics.fillRect(0, 0, width, height);
-
-        // 棋盘格纹理
-        for (let y = 0; y < height; y += tileSize) {
-            for (let x = 0; x < width; x += tileSize) {
-                const isEven = ((x / tileSize) + (y / tileSize)) % 2 === 0;
-                graphics.fillStyle(isEven ? 0x3d2a1a : 0x352417, 1);
-                graphics.fillRect(x, y, tileSize, tileSize);
-            }
-        }
-
-        // 顶部渐变
-        const topFade = this.add.graphics();
-        for (let i = 0; i < 60; i++) {
-            topFade.fillStyle(0x1a1208, 1 - i / 60);
-            topFade.fillRect(0, i, width, 1);
-        }
-
-        // 底部渐变
-        const bottomFade = this.add.graphics();
-        for (let i = 0; i < 60; i++) {
-            bottomFade.fillStyle(0x1a1208, i / 60);
-            bottomFade.fillRect(0, height - 60 + i, width, 1);
-        }
     }
 
     drawBoard(boardX, boardY, boardW, boardH) {
@@ -270,9 +234,12 @@
         if (!this.statusText) return;
         const side = com.sideName(play.my);
         const mode = play.mode === 'player_vs_ai' ? '玩家 对 电脑' : '本地双人';
-        this.statusText.setText(extraText || `${side}行棋`);
+        const inCheck = com.isInCheck(play.my, play.map);
+        let text = extraText || `${side}行棋`;
+        if (inCheck && !extraText) text = `${side}行棋 · 将军！`;
+        this.statusText.setText(text);
         this.statusSubText.setText(mode);
-        this.statusText.setColor(play.my === 1 ? '#ffdad0' : '#e5e0d1');
+        this.statusText.setColor(inCheck ? '#ff4444' : (play.my === 1 ? '#ffdad0' : '#e5e0d1'));
     }
 
     createUndoButton() {
@@ -425,17 +392,8 @@
         const img = this.add.image(0, 0, "chess-piece")
             .setDisplaySize(sz, sz);
 
-        const charMap = {
-            c: { red: "车", black: "車" },
-            m: { red: "马", black: "馬" },
-            x: { red: "相", black: "象" },
-            s: { red: "仕", black: "士" },
-            j: { red: "帅", black: "将" },
-            p: { red: "炮", black: "砲" },
-            z: { red: "兵", black: "卒" }
-        };
         const type  = key[0].toLowerCase();
-        const label = charMap[type] ? (isRed ? charMap[type].red : charMap[type].black) : type;
+        const label = com.getPieceLabel(type, isRed);
 
         const txt = this.add.text(0, -2, label, {
             fontSize        : Math.floor(sz * 0.46) + "px",
@@ -566,7 +524,19 @@
 
         let eatenGeneral = false;
         if (targetKey) {
-            this.piecesMap[targetKey].destroy();
+            const eatenPiece = this.piecesMap[targetKey];
+            if (eatenPiece) {
+                // 吃子动画：缩小淡出
+                this.tweens.add({
+                    targets: eatenPiece,
+                    scaleX: 0,
+                    scaleY: 0,
+                    alpha: 0,
+                    duration: 180,
+                    ease: 'Power2.easeIn',
+                    onComplete: () => eatenPiece.destroy()
+                });
+            }
             delete this.piecesMap[targetKey];
             delete play.mans[targetKey];
             if (targetKey[0].toLowerCase() === 'j') {
@@ -713,51 +683,65 @@
         const H = this.cameras.main.height;
         const isMobile = this.isMobile;
 
-        // 半透明遮罩
-        this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(20);
+        // 半透明遮罩（淡入）
+        const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(20);
+        this.tweens.add({ targets: overlay, fillAlpha: 0.6, duration: 300 });
 
-        // 面板
+        // 面板容器（整体做缩放淡入动画）
         const panelW = Math.min(W - 40, 300);
         const panelH = isMobile ? 160 : 180;
-        this.add.rectangle(W / 2, H / 2, panelW, panelH, 0x3d2a1a).setDepth(21);
-        const border = this.add.graphics().setDepth(21);
+        const panelContainer = this.add.container(W / 2, H / 2).setDepth(21).setScale(0.7).setAlpha(0);
+
+        const panelBg = this.add.rectangle(0, 0, panelW, panelH, 0x3d2a1a);
+        const border = this.add.graphics();
         border.lineStyle(2, 0xd4a355, 1);
-        border.strokeRect(W / 2 - panelW / 2, H / 2 - panelH / 2, panelW, panelH);
+        border.strokeRect(-panelW / 2, -panelH / 2, panelW, panelH);
 
         // 结果文字
-        this.add.text(W / 2, H / 2 - panelH / 2 + (isMobile ? 36 : 44), msg, {
+        const msgText = this.add.text(0, -panelH / 2 + (isMobile ? 36 : 44), msg, {
             fontSize   : isMobile ? "16px" : "18px",
             color      : "#f0d9b5",
             fontFamily : com.pixelFont,
             wordWrap   : { width: panelW - 32 },
             align      : "center",
             resolution : 2
-        }).setOrigin(0.5).setDepth(22);
+        }).setOrigin(0.5);
 
-        // 按钮辅助
-        const makeBtn = (x, y, label, cb) => {
+        // 按钮
+        const makeBtn = (bx, by, label, cb) => {
             const bw = isMobile ? 104 : 114, bh = isMobile ? 34 : 38;
-            const bg = this.add.rectangle(x, y, bw, bh, 0x4a3728).setDepth(22).setInteractive({ useHandCursor: true });
-            const g = this.add.graphics().setDepth(22);
+            const bg = this.add.rectangle(bx, by, bw, bh, 0x4a3728).setInteractive({ useHandCursor: true });
+            const g = this.add.graphics();
             const drawBorder = (alpha) => {
                 g.clear();
                 g.lineStyle(2, 0xd4a355, alpha);
-                g.strokeRect(x - bw / 2, y - bh / 2, bw, bh);
+                g.strokeRect(bx - bw / 2, by - bh / 2, bw, bh);
             };
             drawBorder(0.6);
-            this.add.text(x, y, label, {
+            this.add.text(bx, by, label, {
                 fontSize: isMobile ? "14px" : "15px", color: "#f0d9b5",
                 fontFamily: com.pixelFont, resolution: 2
-            }).setOrigin(0.5).setDepth(23);
+            }).setOrigin(0.5);
             bg.on("pointerover",  () => { bg.setFillStyle(0x5c4a38); drawBorder(1); });
             bg.on("pointerout",   () => { bg.setFillStyle(0x4a3728); drawBorder(0.6); });
             bg.on("pointerdown",  cb);
         };
 
         const gap = isMobile ? 62 : 68;
-        const btnY = H / 2 + panelH / 2 - (isMobile ? 30 : 34);
-        makeBtn(W / 2 - gap, btnY, "再来一局", () => location.reload());
-        makeBtn(W / 2 + gap, btnY, "主  菜  单", () => this.scene.start("MenuScene"));
+        const btnY = panelH / 2 - (isMobile ? 30 : 34);
+        makeBtn(-gap, btnY, "再来一局", () => location.reload());
+        makeBtn(gap, btnY, "主  菜  单", () => this.scene.start("MenuScene"));
+
+        panelContainer.add([panelBg, border, msgText]);
+
+        // 面板弹出动画
+        this.tweens.add({
+            targets: panelContainer,
+            scaleX: 1, scaleY: 1, alpha: 1,
+            duration: 350,
+            ease: 'Back.easeOut',
+            delay: 150
+        });
     }
 
     aiTurn() {
