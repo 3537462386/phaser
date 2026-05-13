@@ -226,9 +226,11 @@ const BUFF_POOL = [
         stackable: true,
         maxStacks: 4,
         apply(scene) {
-            scene.buffs.overclock = Math.min((scene.buffs.overclock || 1) + 1, 4);
-            const mult = 1 + scene.buffs.overclock * 0.15;
-            scene.applyBallSpeedMult(mult);
+            const oldVal = scene.buffs.overclock || 0;
+            scene.buffs.overclock = Math.min(oldVal + 1, 4);
+            const oldMult = 1 + oldVal * 0.15;
+            const newMult = 1 + scene.buffs.overclock * 0.15;
+            scene.applyBallSpeedMult(newMult / oldMult);
         },
     },
     {
@@ -880,10 +882,17 @@ export default class GameScene extends Phaser.Scene {
             brick.setData('hp', hp);
             this.spawnBrickParticles(brick.x, brick.y, 0xff6600);
             if (hp <= 0) {
-                if (brick.getData('type') === 'explosive') this.spawnBullet(brick.x, brick.y);
+                const type = brick.getData('type');
+                if (type === 'explosive') this.spawnBullet(brick.x, brick.y);
+                this.bricksKilled++;
+                const baseScore = type === 'armored' ? 30 : type === 'ghost' ? 25 : type === 'boss' ? 200 : 10;
+                const comboMult = this.getComboMultiplier();
+                this.score += baseScore * this.wave * comboMult;
                 brick.destroy();
             }
         });
+        this.updateHUD();
+        if (this.bricks.countActive() === 0) this.onWaveClear();
     }
 
     spawnBullet(x, y) {
@@ -1037,13 +1046,21 @@ export default class GameScene extends Phaser.Scene {
     }
 
     blowRandomBricks(count) {
-        const alive = this.bricks.getChildren().filter(b => b && b.active);
-        for (let i = 0; i < Math.min(count, alive.length); i++) {
+        for (let i = 0; i < count; i++) {
+            const alive = this.bricks.getChildren().filter(b => b && b.active);
+            if (alive.length === 0) break;
             const b = Phaser.Math.RND.pick(alive);
-            if (!b) continue;
+            if (!b || !b.active) continue;
             this.spawnBrickParticles(b.x, b.y, 0xffee00);
+            const type = b.getData('type');
+            this.bricksKilled++;
+            const baseScore = type === 'armored' ? 30 : type === 'ghost' ? 25 : type === 'boss' ? 200 : 10;
+            const comboMult = this.getComboMultiplier();
+            this.score += baseScore * this.wave * comboMult;
             b.destroy();
         }
+        this.updateHUD();
+        if (this.bricks.countActive() === 0) this.onWaveClear();
     }
 
     // ──────────────────────────────────────────
@@ -1067,6 +1084,12 @@ export default class GameScene extends Phaser.Scene {
             if (vx === 0 && vy === 0) return;
             b.body.setVelocity(vx * final, vy * final);
         });
+    }
+
+    handleBulletHit(paddle, bullet) {
+        if (!bullet || !bullet.active) return;
+        bullet.destroy();
+        this.damagePlayer();
     }
 
     handlePaddleHit(ball, paddle) {
@@ -1178,8 +1201,6 @@ export default class GameScene extends Phaser.Scene {
         b.body.setCollideWorldBounds(true).setBounce(1, 1);
         b.body.setVelocity(-vx / spd * extraSpd, vy / spd * extraSpd);
         this.balls.add(b);
-        this.physics.add.collider(b, this.paddle, this.handlePaddleHit, null, this);
-        this.physics.add.collider(b, this.bricks, this.handleBrickHit, null, this);
     }
 
     // ──────────────────────────────────────────
@@ -1221,7 +1242,12 @@ export default class GameScene extends Phaser.Scene {
                     b.setData('hp', b.getData('hp') - 1);
                     this.spawnBrickParticles(b.x, b.y, 0xff9900);
                     if (b.getData('hp') <= 0) {
-                        if (b.getData('type') === 'explosive') this.spawnBullet(b.x, b.y);
+                        const type = b.getData('type');
+                        if (type === 'explosive') this.spawnBullet(b.x, b.y);
+                        this.bricksKilled++;
+                        const baseScore = type === 'armored' ? 30 : type === 'ghost' ? 25 : type === 'boss' ? 200 : 10;
+                        const comboMult = this.getComboMultiplier();
+                        this.score += baseScore * this.wave * comboMult;
                         b.destroy();
                     }
                 }
@@ -1229,8 +1255,19 @@ export default class GameScene extends Phaser.Scene {
         }
 
         if (hp <= 0) {
-            if (brick.getData('type') === 'explosive') this.spawnBullet(brick.x, brick.y);
+            const type = brick.getData('type');
+            if (type === 'explosive') this.spawnBullet(brick.x, brick.y);
+
+            const dropRate = (type === 'boss' || this.wave === 5) ? 1.0 : 0.08;
+            if (Math.random() < dropRate) this.spawnRelicDrop(brick.x, brick.y);
+            if (Math.random() < 0.15) this.spawnPowerupDrop(brick.x, brick.y);
+
             brick.destroy();
+            this.bricksKilled++;
+            const baseScore = type === 'armored' ? 30 : type === 'ghost' ? 25 : type === 'boss' ? 200 : 10;
+            const comboMult = this.getComboMultiplier();
+            this.score += baseScore * this.wave * comboMult;
+            this.updateHUD();
         }
 
         if (!this.buffs.plasmaPierce || laser.getData('pierced')) {
@@ -1367,9 +1404,6 @@ export default class GameScene extends Phaser.Scene {
         this.ballLaunched = false;
         this.bricks.clear(true, true);
         this.spawnWave(this.wave);
-
-        this.physics.add.collider(this.balls,        this.bricks, this.handleBrickHit, null, this);
-        this.physics.add.overlap(this.lasers,         this.bricks, this.handleLaserHit, null, this);
 
         if (this.relics.energy_core) {
             this.time.delayedCall(600, () => this.blowRandomBricks(2));
