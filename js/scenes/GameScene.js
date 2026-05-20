@@ -375,6 +375,9 @@ export default class GameScene extends Phaser.Scene {
             this.physics.world.drawDebug = true;
         }
 
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.keys    = this.input.keyboard.addKeys('A,D,SPACE,Q');
+
         if (this.sys.game.device.input.touch) {
             this.createMobileControls();
             // 移动端瞄准：触摸游戏区（非按钮区）→ 瞄准，松开 → 发射
@@ -408,9 +411,6 @@ export default class GameScene extends Phaser.Scene {
                     this.launchBallFromAngle();
                 }
             });
-        } else {
-            this.cursors = this.input.keyboard.createCursorKeys();
-            this.keys    = this.input.keyboard.addKeys('A,D,SPACE,Q');
         }
 
         // 碰撞
@@ -1469,16 +1469,11 @@ export default class GameScene extends Phaser.Scene {
 
         const paddleSpeed = 520;
         let dir = 0;
-        if (this.sys.game.device.input.touch) {
-            if (this.isLeftDown)       dir = -1;
-            else if (this.isRightDown) dir =  1;
-        } else {
-            if (this.cursors.left.isDown  || this.keys.A.isDown) dir = -1;
-            else if (this.cursors.right.isDown || this.keys.D.isDown) dir = 1;
-        }
+        if (this.isLeftDown || this.cursors.left.isDown || this.keys.A.isDown) dir = -1;
+        else if (this.isRightDown || this.cursors.right.isDown || this.keys.D.isDown) dir = 1;
 
         // 粘球瞄准控制
-        if (!this.sys.game.device.input.touch) {
+        if (!this._mobileAiming) {
             if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
                 this.stickBall();
             }
