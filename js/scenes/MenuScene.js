@@ -95,7 +95,7 @@ class MenuScene extends BaseScene {
 
     _drawButtons() {
         [
-            { label: '开始游戏', sub: 'START GAME',   icon: '🚀', target: 'GameScene',          accent: 0x2277ff },
+            { label: '开始游戏', sub: 'START GAME',   icon: '🚀', target: 'CharacterSelectScene', accent: 0x2277ff },
             { label: '成    就',  sub: 'ACHIEVEMENTS', icon: '🏆', target: 'AchievementsScene', accent: 0xffaa22 },
             { label: '游戏设置', sub: 'SETTINGS',     icon: '⚙',  target: 'SettingsScene',     accent: 0x33cc77 },
         ].forEach((item, i) => this._makeButton(250, 272 + i * 90, item));

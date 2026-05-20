@@ -38,6 +38,10 @@ class Player {
         this.fireCooldown = 200;    // 射击冷却（ms）
         this.moveSpeed    = 280;    // 移动速度（px/s）
 
+        // HP 系统
+        this.hp    = 3;
+        this.maxHp = 3;
+
         this._cursors  = null;
         this._spacebar = null;
         this._keyA     = null;
@@ -58,10 +62,19 @@ class Player {
      * 初始化飞机；在 scene.create() 中调用
      * @param {number} x
      * @param {number} y
+     * @param {object} [characterConfig] - 来自 CHARACTER_DATA
      * @returns {Player} this（支持链式调用）
      */
-    create(x, y) {
+    create(x, y, characterConfig) {
         const s = this.scene;
+
+        // 应用角色配置
+        if (characterConfig) {
+            this.moveSpeed    = characterConfig.speed        || this.moveSpeed;
+            this.maxHp        = characterConfig.maxHp        || this.maxHp;
+            this.fireCooldown = characterConfig.fireCooldown || this.fireCooldown;
+        }
+        this.hp = this.maxHp;
 
         this._registerAnimations();
 
@@ -117,8 +130,23 @@ class Player {
      */
     update(time) {
         this._handleMovement();
-        this._handleFire(time);
-        this._recycleBullets();
+        // 注意：射击逻辑已移至 WeaponManager，不再在此处调用 _handleFire
+    }
+
+    /**
+     * 受到伤害
+     * @param {number} amount
+     * @returns {boolean} 是否死亡
+     */
+    takeDamage(amount) {
+        this.hp = Math.max(0, this.hp - amount);
+        // 被击中闪烁
+        this.scene.tweens.add({
+            targets: this.sprite,
+            alpha: 0.2, duration: 60, yoyo: true, repeat: 3,
+            onComplete: () => { if (this.sprite) this.sprite.setAlpha(1); }
+        });
+        return this.hp <= 0;
     }
 
     /**

@@ -12,11 +12,39 @@
 <body>
     <div id="gameContainer"></div>
 
+    <!-- 核心数据 -->
+    <script src="./js/core/GameState.js"></script>
+    <script src="./js/data/CharacterData.js"></script>
+    <script src="./js/data/WeaponData.js"></script>
+    <script src="./js/data/EnemyData.js"></script>
+
+    <!-- 系统 -->
+    <script src="./js/systems/LevelingSystem.js"></script>
+    <script src="./js/systems/WaveManager.js"></script>
+    <script src="./js/systems/UpgradeManager.js"></script>
+
+    <!-- 武器 -->
+    <script src="./js/weapons/WeaponManager.js"></script>
+
+    <!-- 道具 -->
+    <script src="./js/items/ItemManager.js"></script>
+
+    <!-- UI -->
+    <script src="./js/ui/GameHUD.js"></script>
+    <script src="./js/ui/UpgradePopup.js"></script>
+
+    <!-- 场景 -->
     <script src="./js/scenes/BaseScene.js"></script>
     <script src="./js/scenes/MenuScene.js"></script>
     <script src="./js/scenes/AchievementsScene.js"></script>
     <script src="./js/scenes/SettingsScene.js"></script>
+    <script src="./js/scenes/CharacterSelectScene.js"></script>
+
+    <!-- 实体 -->
     <script src="./js/entities/Player.js"></script>
+    <script src="./js/entities/EnemyManager.js"></script>
+
+    <!-- 游戏场景 + 入口 -->
     <script src="./js/scenes/GameScene.js"></script>
     <script src="./js/main.js"></script>
 </body>
