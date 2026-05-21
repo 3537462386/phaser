@@ -12,7 +12,8 @@ const ENEMY_DATA = {
         contactDamage: 1,
         scale:         1.0,
         tint:          0xffffff,
-        spawnWeight:   6
+        spawnWeight:   6,
+        goldValue:     1
     },
     fast: {
         id:            'fast',
@@ -23,7 +24,8 @@ const ENEMY_DATA = {
         contactDamage: 1,
         scale:         0.75,
         tint:          0x88ffee,
-        spawnWeight:   3
+        spawnWeight:   3,
+        goldValue:     2
     },
     heavy: {
         id:            'heavy',
@@ -34,7 +36,8 @@ const ENEMY_DATA = {
         contactDamage: 2,
         scale:         1.4,
         tint:          0xff8844,
-        spawnWeight:   2
+        spawnWeight:   2,
+        goldValue:     3
     },
     elite: {
         id:            'elite',
@@ -45,6 +48,7 @@ const ENEMY_DATA = {
         contactDamage: 2,
         scale:         1.7,
         tint:          0xff4488,
-        spawnWeight:   1
+        spawnWeight:   1,
+        goldValue:     8
     }
 };

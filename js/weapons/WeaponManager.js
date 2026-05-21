@@ -399,6 +399,21 @@ class WeaponManager {
     }
 
     /**
+     * 从快照恢复武器列表（轮间休整后回到 GameScene 时使用）
+     * @param {Array<{id: string, level: number}>} snapshot
+     */
+    initFromSnapshot(snapshot) {
+        this._weapons = [];
+        for (const s of snapshot) {
+            const weapon = this._createWeapon(s.id);
+            if (weapon) {
+                weapon.level = s.level;
+                this._weapons.push(weapon);
+            }
+        }
+    }
+
+    /**
      * 添加新武器或升级已有武器
      * @param {string} weaponId
      */

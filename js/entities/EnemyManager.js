@@ -64,7 +64,7 @@ class EnemyManager {
     /** 子弹命中时调用；wasKilled=true 表示是被打死（而非逃跑） */
     reset(enemy, wasKilled = false) {
         if (wasKilled && this.onEnemyKilled) {
-            this.onEnemyKilled(enemy.x, enemy.y, enemy.expValue || 1);
+            this.onEnemyKilled(enemy.x, enemy.y, enemy.expValue || 1, enemy.enemyType || 'normal');
         }
         this._despawn(enemy);
     }

@@ -16,10 +16,12 @@ class GameScene extends Phaser.Scene {
         this.bg            = null;
         this.bgScrollSpeed = 2;
 
-        this.gameOver    = false;
-        this.isPaused    = false;
-        this.killCount   = 0;
-        this.elapsedTime = 0;
+        this.gameOver      = false;
+        this.isPaused      = false;
+        this.roundComplete = false;
+        this.killCount     = 0;
+        this.roundKills    = 0;
+        this.elapsedTime   = 0;
 
         this._damageImmune = false;
     }
@@ -41,11 +43,19 @@ class GameScene extends Phaser.Scene {
     }
 
     create() {
-        GameState.reset();
-        this.gameOver    = false;
-        this.isPaused    = false;
-        this.killCount   = 0;
-        this.elapsedTime = 0;
+        const data = this.scene.settings.data || {};
+        const fromInterlude = data.fromInterlude === true;
+
+        if (!fromInterlude) {
+            GameState.reset();
+        }
+
+        this.gameOver      = false;
+        this.isPaused      = false;
+        this.roundComplete = false;
+        this.killCount     = fromInterlude ? GameState.run.killCount   : 0;
+        this.roundKills    = 0;
+        this.elapsedTime   = fromInterlude ? GameState.run.elapsedTime : 0;
         this._damageImmune = false;
 
         // 背景
@@ -75,16 +85,48 @@ class GameScene extends Phaser.Scene {
         // 武器
         this.weaponManager = new WeaponManager();
         this.weaponManager.create(this, this.player);
-        this.weaponManager.initWithWeapon(charConfig.startWeapon || 'gun');
+        if (fromInterlude && GameState.run.playerSnapshot) {
+            const snap = GameState.run.playerSnapshot;
+            this.player.hp           = snap.hp;
+            this.player.maxHp        = snap.maxHp;
+            this.player.moveSpeed    = snap.moveSpeed;
+            this.player.fireCooldown = snap.fireCooldown;
+            this.weaponManager.initFromSnapshot(snap.weapons);
+        } else {
+            this.weaponManager.initWithWeapon(charConfig.startWeapon || 'gun');
+        }
 
         // 敌人
         this.enemyManager = new EnemyManager(this);
         this.enemyManager.setWaveManager(this.waveManager);
         this.enemyManager.create();
-        this.enemyManager.onEnemyKilled = (x, y, expValue) => {
+
+        // 按轮数设置难度
+        const round = GameState.run.currentRound;
+        this.waveManager.reset(round);
+        if (round > 1) {
+            this.enemyManager.increaseDifficulty(round - 1);
+        }
+
+        // 击杀回调
+        this.enemyManager.onEnemyKilled = (x, y, expValue, enemyType) => {
             this.killCount++;
-            GameState.run.killCount = this.killCount;
+            this.roundKills++;
+            GameState.run.killCount  = this.killCount;
+            GameState.run.roundKills = this.roundKills;
+
+            // 金币掉落
+            const goldByType = { normal: 1, fast: 2, heavy: 3, elite: 8 };
+            GameState.run.gold += (goldByType[enemyType] || 1);
+
+            // 通知 WaveManager（用于精英计数）
+            this.waveManager.notifyKill(enemyType);
             this.itemManager.spawnExp(x, y, expValue);
+
+            // 本轮结束检测
+            if (this.roundKills >= GameState.run.killTarget && !this.roundComplete) {
+                this._handleRoundComplete();
+            }
         };
 
         // 碰撞
@@ -121,7 +163,6 @@ class GameScene extends Phaser.Scene {
 
         this.bg.tilePositionY += this.bgScrollSpeed;
 
-        this.waveManager.tick(deltaSec);
         this.player.update(time);
         this.weaponManager.update(time, this.enemyManager.group);
         this.enemyManager.update();
@@ -134,7 +175,11 @@ class GameScene extends Phaser.Scene {
             expProgress: this.levelingSystem.progress,
             elapsedSec:  this.elapsedTime,
             killCount:   this.killCount,
-            weapons:     this.weaponManager.getWeapons()
+            weapons:     this.weaponManager.getWeapons(),
+            round:       GameState.run.currentRound,
+            roundKills:  this.roundKills,
+            killTarget:  GameState.run.killTarget,
+            gold:        GameState.run.gold
         });
     }
 
@@ -239,11 +284,12 @@ class GameScene extends Phaser.Scene {
         const timeStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
         [
+            `最终轮数  第 ${GameState.run.currentRound} 轮`,
             `存活时间  ${timeStr}`,
             `击杀数量  ${this.killCount}`,
             `最终等级  Lv.${this.levelingSystem.level}`
         ].forEach((line, i) => {
-            this.add.text(250, 300 + i * 44, line, {
+            this.add.text(250, 270 + i * 44, line, {
                 fontSize: '20px', fontFamily: 'Arial',
                 fill: '#aabbcc', stroke: '#000011', strokeThickness: 2
             }).setOrigin(0.5).setDepth(61);

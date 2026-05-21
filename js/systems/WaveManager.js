@@ -1,28 +1,34 @@
 /**
- * WaveManager — 根据游戏时间决定敌人生成策略
+ * WaveManager — 根据当前轮数决定敌人生成策略
  *
- * 时间阶段：
- *   0   ~ 120s  : 仅 normal
- *   120 ~ 300s  : normal + fast
- *   300s+       : normal + fast + heavy；每 60s 额外生成一个 elite
+ * 轮数阶段：
+ *   第 1-2 轮 : 仅 normal
+ *   第 3-4 轮 : normal + fast
+ *   第 5-7 轮 : normal + fast + heavy
+ *   第 8 轮+  : fast + heavy（更高密度）
+ *   第 5 轮起  : 每击杀 20 个非精英敌人出现一个 elite
  */
 class WaveManager {
     constructor() {
-        this.elapsedSeconds = 0;
-        this._lastEliteSpawn = 0;  // 上次生成 elite 的时刻(s)
-    }
-
-    reset() {
-        this.elapsedSeconds  = 0;
-        this._lastEliteSpawn = 0;
+        this.currentRound      = 1;
+        this._killsSinceElite  = 0;
     }
 
     /**
-     * 每帧调用，增加时间
-     * @param {number} deltaSec  delta / 1000
+     * 进入新一轮时重置
+     * @param {number} round  当前轮数
      */
-    tick(deltaSec) {
-        this.elapsedSeconds += deltaSec;
+    reset(round = 1) {
+        this.currentRound     = round;
+        this._killsSinceElite = 0;
+    }
+
+    /**
+     * 击杀发生时通知（用于精英计数）
+     * @param {string} enemyType
+     */
+    notifyKill(enemyType) {
+        if (enemyType !== 'elite') this._killsSinceElite++;
     }
 
     /**
@@ -30,39 +36,31 @@ class WaveManager {
      * @returns {string} 敌人 id
      */
     pickEnemyType() {
-        const t = this.elapsedSeconds;
+        const r = this.currentRound;
 
-        // 精英：300s 后每 60s 一次
-        if (t >= 300 && t - this._lastEliteSpawn >= 60) {
-            this._lastEliteSpawn = t;
+        // 精英：第 5 轮起，每 20 次击杀出现一次
+        if (r >= 5 && this._killsSinceElite >= 20) {
+            this._killsSinceElite = 0;
             return 'elite';
         }
 
         let pool;
-        if (t < 120) {
+        if (r <= 2) {
             pool = ['normal', 'normal', 'normal'];
-        } else if (t < 300) {
+        } else if (r <= 4) {
             pool = ['normal', 'normal', 'fast'];
-        } else {
+        } else if (r <= 7) {
             pool = ['normal', 'fast', 'heavy'];
+        } else {
+            pool = ['fast', 'heavy', 'heavy'];
         }
         return pool[Math.floor(Math.random() * pool.length)];
     }
 
     /**
-     * 当前生成间隔(ms)
-     * 随时间线性缩短，最低 350ms
-     */
-    get spawnInterval() {
-        const t = this.elapsedSeconds;
-        return Math.max(350, 1200 - Math.floor(t / 30) * 80);
-    }
-
-    /**
-     * 当前同屏最大数量
+     * 当前同屏最大数量（按轮数递增）
      */
     get maxAlive() {
-        const t = this.elapsedSeconds;
-        return Math.min(20, 10 + Math.floor(t / 60));
+        return Math.min(25, 8 + this.currentRound * 2);
     }
 }
