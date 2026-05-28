@@ -40,14 +40,16 @@ class UpgradePopup {
         this._container = scene.add.container(0, 0).setDepth(51);
         this._container.add([overlay, title, sub]);
 
-        // 绘制三张牌
-        const CARD_W = 130, CARD_H = 180;
+        // 绘制卡牌（支持 3-4 个选项）
         const TOTAL  = options.length;
-        const startX = 250 - ((TOTAL - 1) * 0.5) * (CARD_W + 16);
+        const CARD_W = TOTAL > 3 ? 110 : 130;
+        const CARD_H = TOTAL > 3 ? 170 : 180;
+        const GAP    = TOTAL > 3 ? 10 : 16;
+        const startX = 250 - ((TOTAL - 1) * 0.5) * (CARD_W + GAP);
 
         for (let i = 0; i < TOTAL; i++) {
             const opt    = options[i];
-            const cx     = startX + i * (CARD_W + 16);
+            const cx     = startX + i * (CARD_W + GAP);
             const cy     = 380;
             this._makeCard(cx, cy, CARD_W, CARD_H, opt);
         }
@@ -87,9 +89,9 @@ class UpgradePopup {
             fontSize: '32px'
         }).setOrigin(0.5).setDepth(53);
 
-        // 名称
-        const nameTxt = scene.add.text(cx, y0 + 85, option.label, {
-            fontSize: '14px', fontFamily: 'Arial', fontStyle: 'bold',
+        // 名称（含稀有度标签）
+        const nameTxt = scene.add.text(cx, y0 + 85, option.label + (this._rarityTag(option) || ''), {
+            fontSize: '13px', fontFamily: 'Arial', fontStyle: 'bold',
             fill: '#ddeeff', wordWrap: { width: W - 12 }, align: 'center'
         }).setOrigin(0.5, 0).setDepth(53);
 
@@ -120,13 +122,28 @@ class UpgradePopup {
     }
 
     _accentColor(option) {
-        if (option.type === 'newWeapon')     return 0x44aaff;
-        if (option.type === 'upgradeWeapon') return 0xffaa22;
+        // 稀有度优先
+        if (option.rarity === 'legendary') return 0xff44ff;
+        if (option.rarity === 'rare')      return 0x44aaff;
+        if (option.rarity === 'uncommon')  return 0x44ff88;
+
+        // 类型次之
+        if (option.type === 'evolveWeapon') return 0xff44ff;
+        if (option.type === 'newWeapon')    return 0x44aaff;
+        if (option.type === 'upgradeWeapon')return 0xffaa22;
+        if (option.type === 'passiveItem')  return 0x44ff88;
         switch (option.id) {
             case 'speed':    return 0x44ffcc;
             case 'hp':       return 0xff4466;
             case 'cooldown': return 0xffee44;
             default:         return 0x6677aa;
         }
+    }
+
+    _rarityTag(option) {
+        if (option.rarity === 'legendary') return ' [传说]';
+        if (option.rarity === 'rare')      return ' [稀有]';
+        if (option.rarity === 'uncommon')  return ' [优良]';
+        return '';
     }
 }

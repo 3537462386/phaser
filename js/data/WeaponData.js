@@ -72,3 +72,66 @@ const WEAPON_DATA = {
         color:     0xff8844
     }
 };
+
+/**
+ * WEAPON_EVOLUTION — 武器进化定义
+ *
+ * 武器达到 Lv3 后，可通过商店/遗物/事件进化为终极形态。
+ * 进化需要对应遗物（catalyst），满足条件后武器变为进化形态。
+ */
+const WEAPON_EVOLUTION = {
+    gun: {
+        evolvedId:   'gun_omega',
+        evolvedName: '欧米茄机炮',
+        evolvedDesc: '三排齐射 + 子弹体积增大',
+        evolvedIcon: '🌟',
+        catalyst:    'magnifier',    // 需要持有放大镜遗物
+        evolvedDamage:  3,
+        evolvedCooldown: 120
+    },
+    spread: {
+        evolvedId:   'spread_nova',
+        evolvedName: '超新星散弹',
+        evolvedDesc: '九叉散射 + 爆炸弹头',
+        evolvedIcon: '✨',
+        catalyst:    'explosion_core',
+        evolvedDamage:  2,
+        evolvedCooldown: 250
+    },
+    homing: {
+        evolvedId:   'homing_swarm',
+        evolvedName: '蜂群追踪弹',
+        evolvedDesc: '同时发射 4 枚追踪弹',
+        evolvedIcon: '🌀',
+        catalyst:    'rapid_coil',
+        evolvedDamage:  2,
+        evolvedCooldown: 300
+    },
+    laser: {
+        evolvedId:   'laser_death',
+        evolvedName: '死亡射线',
+        evolvedDesc: '持续激光,伤害大幅提升',
+        evolvedIcon: '☄',
+        catalyst:    'piercing_lens',
+        evolvedDamage: 5,
+        evolvedCooldown: 1200
+    },
+    orbit: {
+        evolvedId:   'orbit_storm',
+        evolvedName: '轨道风暴',
+        evolvedDesc: '6 个护盾球 + 伤害翻倍',
+        evolvedIcon: '🌪',
+        catalyst:    'shield_shard',
+        evolvedDamage:  2,
+        evolvedCooldown: 0
+    },
+    pulse: {
+        evolvedId:   'pulse_quake',
+        evolvedName: '地震脉冲',
+        evolvedDesc: '双倍范围 + 双倍伤害',
+        evolvedIcon: '🌋',
+        catalyst:    'magnifier',
+        evolvedDamage:  3,
+        evolvedCooldown: 1800
+    }
+};
