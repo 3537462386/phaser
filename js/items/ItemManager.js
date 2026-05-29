@@ -10,17 +10,20 @@ class ItemManager {
         this._RADIUS   = 8;
         this._MAGNET_DIST = 80;
         this._PICKUP_DIST = 22;
+        this._gfxPool = null;
     }
 
     create(scene) {
         this.scene = scene;
+        this._gfxPool = new GraphicsPool(scene, 30);
     }
 
     /**
      * 在指定位置掉落经验球
      */
     spawnExp(x, y, amount) {
-        const gfx = this.scene.add.graphics();
+        const gfx = this._gfxPool.get();
+        if (!gfx) return; // 池满，不再生成
         gfx.setDepth(3);
         // 绘制经验球
         gfx.fillStyle(0x44ffaa, 0.9);
@@ -43,11 +46,13 @@ class ItemManager {
     /**
      * 每帧更新：磁力吸取 + 拾取判定
      * @param {Phaser.GameObjects.Sprite} playerSprite
+     * @param {number} deltaSec
      */
-    update(playerSprite) {
+    update(playerSprite, deltaSec = 1 / 60) {
         if (!playerSprite || !playerSprite.active) return;
         const px = playerSprite.x;
         const py = playerSprite.y;
+        const dtScale = deltaSec * 60;
 
         for (const orb of this._orbs) {
             if (!orb.active) continue;
@@ -59,23 +64,23 @@ class ItemManager {
             // 拾取
             if (dist < this._PICKUP_DIST) {
                 orb.active = false;
-                orb.gfx.destroy();
+                this._gfxPool.release(orb.gfx);
                 if (this._onPickup) this._onPickup(orb.amount);
                 continue;
             }
 
             // 磁力吸引
             if (dist < this._MAGNET_DIST) {
-                const speed = 3.5;
+                const speed = 3.5 * dtScale;
                 orb.x += (dx / dist) * speed;
                 orb.y += (dy / dist) * speed;
                 orb.gfx.setPosition(orb.x, orb.y);
             }
 
-            // 飞出屏幕则销毁
+            // 飞出屏幕则回收
             if (orb.y > 730) {
                 orb.active = false;
-                orb.gfx.destroy();
+                this._gfxPool.release(orb.gfx);
             }
         }
 
@@ -84,7 +89,9 @@ class ItemManager {
 
     /** 场景重置时清理所有球 */
     clear() {
-        for (const o of this._orbs) o.gfx.destroy();
+        for (const o of this._orbs) {
+            if (o.gfx) this._gfxPool.release(o.gfx);
+        }
         this._orbs = [];
     }
 }

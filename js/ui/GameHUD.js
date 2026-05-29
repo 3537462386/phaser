@@ -21,6 +21,8 @@ class GameHUD {
         this._weaponIcons = [];
         this._relicContainer = null;
         this._shieldTxt      = null;
+        this._lastWeaponHash = '';
+        this._lastRelicHash  = '';
         this._bossBarBg      = null;
         this._bossBarFill    = null;
         this._bossNameTxt    = null;
@@ -344,6 +346,11 @@ class GameHUD {
 
     _updateWeaponIcons(weapons) {
         if (!weapons) return;
+        // 脏检测：仅当武器列表发生实质性变化时才重建
+        const hash = weapons.map(w => `${w.id}:${w.level}`).join(',');
+        if (this._lastWeaponHash === hash) return;
+        this._lastWeaponHash = hash;
+
         this._weaponContainer.removeAll(true);
 
         const startX = 40;
@@ -373,8 +380,14 @@ class GameHUD {
     }
 
     _updateRelicIcons(relics) {
-        if (!relics || relics.length === 0) return;
+        if (!relics) relics = [];
+        // 脏检测
+        const hash = relics.map(r => `${r.id}:${r.count}`).join(',');
+        if (this._lastRelicHash === hash) return;
+        this._lastRelicHash = hash;
+
         this._relicContainer.removeAll(true);
+        if (relics.length === 0) return;
 
         const startX = 210;
         const y = 676;

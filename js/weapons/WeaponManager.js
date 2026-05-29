@@ -23,7 +23,7 @@ class BaseWeapon {
         return this.data.damage + (this.level - 1);
     }
     upgrade() { this.level = Math.min(3, this.level + 1); }
-    update(time, enemyGroup) {}
+    update(time, deltaSec, enemyGroup) {}
     destroy() {}
 }
 
@@ -38,7 +38,7 @@ class GunWeapon extends BaseWeapon {
 
     get bulletGroup() { return this._pool; }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         // 自动开火
         if (time > this._lastFired + this.cooldown) {
             this._fire();
@@ -81,7 +81,7 @@ class SpreadWeapon extends BaseWeapon {
 
     get bulletGroup() { return this._pool; }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         if (time > this._lastFired + this.cooldown) {
             this._fire();
             this._lastFired = time;
@@ -121,15 +121,17 @@ class HomingWeapon extends BaseWeapon {
     constructor(scene, player) {
         super(scene, player, WEAPON_DATA.homing);
         this._bullets = [];  // { gfx, x, y, vx, vy, active, damage }
+        this._gfxPool = new GraphicsPool(scene, 20);
     }
 
     get bulletGroup() { return null; }  // 手动处理碰撞
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         if (time > this._lastFired + this.cooldown) {
             this._fire();
             this._lastFired = time;
         }
+        const dtScale = deltaSec * 60;
         // 更新追踪弹运动
         for (const b of this._bullets) {
             if (!b.active) continue;
@@ -147,8 +149,8 @@ class HomingWeapon extends BaseWeapon {
                 b.vx = (b.vx / len) * spd;
                 b.vy = (b.vy / len) * spd;
             }
-            b.x += b.vx / 60;
-            b.y += b.vy / 60;
+            b.x += (b.vx / 60) * dtScale;
+            b.y += (b.vy / 60) * dtScale;
             b.gfx.setPosition(b.x, b.y);
             // 检测与敌人的碰撞
             if (enemyGroup) {
@@ -157,14 +159,14 @@ class HomingWeapon extends BaseWeapon {
                     const dx = enemy.x - b.x, dy = enemy.y - b.y;
                     if (Math.sqrt(dx * dx + dy * dy) < 22) {
                         b.active = false;
-                        b.gfx.setVisible(false);
+                        this._gfxPool.release(b.gfx);
                         if (this.scene._damageEnemy) this.scene._damageEnemy(enemy, b.damage);
                     }
                 });
             }
             if (b.y < -30 || b.y > 730 || b.x < -30 || b.x > 530) {
                 b.active = false;
-                b.gfx.setVisible(false);
+                this._gfxPool.release(b.gfx);
             }
         }
         // 清理不活跃的子弹对象
@@ -174,7 +176,8 @@ class HomingWeapon extends BaseWeapon {
     _fire() {
         const count = this.level >= 2 ? 2 : 1;
         for (let i = 0; i < count; i++) {
-            const gfx = this.scene.add.graphics();
+            const gfx = this._gfxPool.get();
+            if (!gfx) continue;
             gfx.fillStyle(this.data.color, 1);
             gfx.fillCircle(0, 0, 5);
             gfx.setDepth(5);
@@ -200,8 +203,11 @@ class HomingWeapon extends BaseWeapon {
     }
 
     destroy() {
-        for (const b of this._bullets) b.gfx.destroy();
+        for (const b of this._bullets) {
+            if (b.gfx) this._gfxPool.release(b.gfx);
+        }
         this._bullets = [];
+        this._gfxPool.clear();
     }
 }
 
@@ -217,7 +223,7 @@ class LaserWeapon extends BaseWeapon {
 
     get bulletGroup() { return null; }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         const isActive = time < this._activeUntil;
 
         if (!isActive && time > this._lastFired + this.cooldown) {
@@ -269,54 +275,67 @@ class LaserWeapon extends BaseWeapon {
 class OrbitWeapon extends BaseWeapon {
     constructor(scene, player) {
         super(scene, player, WEAPON_DATA.orbit);
-        this._orbs    = [];
+        this._orbs    = [];   // { gfx }
+        this._gfxPool = new GraphicsPool(scene, 6);
         this._angle   = 0;
+        this._frameIndex = 0;
     }
 
     get bulletGroup() { return null; }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         const count  = this.data.count + (this.level - 1);
         const radius = this.data.radius;
         const px     = this.player.sprite.x;
         const py     = this.player.sprite.y;
+        const dtScale = deltaSec * 60;
 
-        // 按需创建/销毁护盾球
+        // 按需创建/回收护盾球
         while (this._orbs.length < count) {
-            const g = this.scene.add.graphics();
-            g.fillStyle(this.data.color, 0.85);
-            g.fillCircle(0, 0, 8);
-            g.setDepth(7);
-            this._orbs.push(g);
+            const gfx = this._gfxPool.get();
+            if (!gfx) break;
+            gfx.fillStyle(this.data.color, 0.85);
+            gfx.fillCircle(0, 0, 8);
+            gfx.setDepth(7);
+            this._orbs.push({ gfx });
         }
         while (this._orbs.length > count) {
-            this._orbs.pop().destroy();
+            const orb = this._orbs.pop();
+            this._gfxPool.release(orb.gfx);
         }
 
-        this._angle += 0.03;
+        this._angle += 0.03 * dtScale;
+        this._frameIndex = (this._frameIndex + 1) % 3;
+
+        const children = enemyGroup ? enemyGroup.getChildren() : [];
+        const frame = this._frameIndex;
 
         for (let i = 0; i < this._orbs.length; i++) {
             const a = this._angle + (i / count) * Math.PI * 2;
             const ox = px + Math.cos(a) * radius;
             const oy = py + Math.sin(a) * radius;
-            this._orbs[i].setPosition(ox, oy);
+            this._orbs[i].gfx.setPosition(ox, oy);
 
-            // 与敌人碰撞
-            if (enemyGroup) {
-                enemyGroup.children.iterate(e => {
-                    if (!e.active) return;
+            // 与敌人碰撞（帧分摊：每帧只检测 1/3 敌人）
+            if (enemyGroup && children.length > 0) {
+                for (let j = frame; j < children.length; j += 3) {
+                    const e = children[j];
+                    if (!e.active) continue;
                     const d = Phaser.Math.Distance.Between(ox, oy, e.x, e.y);
                     if (d < 26) {
                         if (this.scene._damageEnemy) this.scene._damageEnemy(e, this.damage);
                     }
-                });
+                }
             }
         }
     }
 
     destroy() {
-        for (const o of this._orbs) o.destroy();
+        for (const o of this._orbs) {
+            if (o.gfx) this._gfxPool.release(o.gfx);
+        }
         this._orbs = [];
+        this._gfxPool.clear();
     }
 }
 
@@ -327,26 +346,35 @@ class PulseWeapon extends BaseWeapon {
     constructor(scene, player) {
         super(scene, player, WEAPON_DATA.pulse);
         this._waves = [];
+        this._gfxPool = new GraphicsPool(scene, 5);
+        this._frameIndex = 0;
     }
 
     get bulletGroup() { return null; }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         if (time > this._lastFired + this.cooldown) {
             this._spawnWave();
             this._lastFired = time;
         }
+        const dtScale = deltaSec * 60;
+        this._frameIndex = (this._frameIndex + 1) % 3;
+
+        const children = enemyGroup ? enemyGroup.getChildren() : [];
+        const frame = this._frameIndex;
+
         // 更新波纹扩张
         for (const w of this._waves) {
-            w.r += 3;
+            w.r += 3 * dtScale;
             w.gfx.clear();
             if (w.r < this.data.radius) {
                 w.gfx.lineStyle(3, this.data.color, 1 - w.r / this.data.radius);
                 w.gfx.strokeCircle(w.x, w.y, w.r);
-                // 伤害范围内的敌人
-                if (enemyGroup && w.r > 10) {
-                    enemyGroup.children.iterate(e => {
-                        if (!e.active) return;
+                // 伤害范围内的敌人（帧分摊）
+                if (enemyGroup && w.r > 10 && children.length > 0) {
+                    for (let j = frame; j < children.length; j += 3) {
+                        const e = children[j];
+                        if (!e.active) continue;
                         const d = Phaser.Math.Distance.Between(w.x, w.y, e.x, e.y);
                         if (Math.abs(d - w.r) < 8) {
                             if (!w.hitSet.has(e)) {
@@ -354,10 +382,10 @@ class PulseWeapon extends BaseWeapon {
                                 if (this.scene._damageEnemy) this.scene._damageEnemy(e, this.damage);
                             }
                         }
-                    });
+                    }
                 }
             } else {
-                w.gfx.destroy();
+                this._gfxPool.release(w.gfx);
                 w.done = true;
             }
         }
@@ -366,14 +394,18 @@ class PulseWeapon extends BaseWeapon {
 
     _spawnWave() {
         const { x, y } = this.player.sprite;
-        const gfx = this.scene.add.graphics();
+        const gfx = this._gfxPool.get();
+        if (!gfx) return;
         gfx.setDepth(5);
         this._waves.push({ gfx, x, y, r: 0, hitSet: new Set(), done: false });
     }
 
     destroy() {
-        for (const w of this._waves) w.gfx.destroy();
+        for (const w of this._waves) {
+            if (w.gfx) this._gfxPool.release(w.gfx);
+        }
         this._waves = [];
+        this._gfxPool.clear();
     }
 }
 
@@ -434,9 +466,9 @@ class WeaponManager {
         if (w) w.upgrade();
     }
 
-    update(time, enemyGroup) {
+    update(time, deltaSec, enemyGroup) {
         for (const w of this._weapons) {
-            w.update(time, enemyGroup);
+            w.update(time, deltaSec, enemyGroup);
         }
     }
 

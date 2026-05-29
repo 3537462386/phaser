@@ -246,14 +246,6 @@ class Player {
         bullet.setScale(0.8);
         bullet.setVelocityY(-400);
 
-        // 3 秒后自动回收（兜底）
-        this.scene.time.delayedCall(3000, () => {
-            if (bullet.active) {
-                bullet.setActive(false);
-                bullet.setVisible(false);
-            }
-        });
-
         console.log('🔊 激光音效');
     }
 

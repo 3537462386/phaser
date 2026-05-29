@@ -53,10 +53,11 @@ class EnemyManager {
         this._startSpawner();
     }
 
-    update() {
+    update(deltaSec = 1 / 60) {
+        const dtScale = deltaSec * 60;
         this.group.children.iterate((enemy) => {
             if (!enemy.active) return;
-            enemy.y += enemy.speed;
+            enemy.y += enemy.speed * dtScale;
             if (enemy.y > 720) this._despawn(enemy);
         });
     }

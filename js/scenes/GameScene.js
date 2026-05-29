@@ -239,12 +239,13 @@ class GameScene extends Phaser.Scene {
         this.elapsedTime        += deltaSec;
         GameState.run.elapsedTime = this.elapsedTime;
 
-        this.bg.tilePositionY += this.bgScrollSpeed;
+        // 背景滚动按 deltaSec 缩放，保证低帧率下速度一致
+        this.bg.tilePositionY += this.bgScrollSpeed * deltaSec * 60;
 
         this.player.update(time);
-        this.weaponManager.update(time, this.enemyManager.group);
-        this.enemyManager.update();
-        this.itemManager.update(this.player.sprite);
+        this.weaponManager.update(time, deltaSec, this.enemyManager.group);
+        this.enemyManager.update(deltaSec);
+        this.itemManager.update(this.player.sprite, deltaSec);
 
         // 遗物系统更新
         this.passiveItemManager.update(time, delta);
