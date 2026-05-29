@@ -1,28 +1,17 @@
 /**
- * InterludeScene — 轮间休整场景
+ * InterludeScene — 太空补给终端（赛博朋克风格）
  *
- * 优化后流程：
- *   1. 轮结束 → 随机事件（EventManager）
- *   2. 事件选择后 → 军备补给站（商店）
- *   3. 商店 → 继续战斗
- *
- * 商店新增：
- *   - 遗物购买（随机 tier 1/2 遗物，可重roll）
- *   - 武器进化（条件满足时可进化）
- *   - 重roll 商店（消耗金币刷新商品）
- *   - 金币经济深度优化
- *
- * 数据来源：GameState.run.playerSnapshot
- * 数据去向：修改 playerSnapshot，GameScene.create() 读取并应用
+ * 流程：轮结束 → 随机事件 → 军备补给站 → 继续战斗
+ * 设计：终端界面、全息面板、霓虹分割线、扫描线背景
  */
 class InterludeScene extends BaseScene {
 
     constructor() {
         super({ key: 'InterludeScene' });
-        this._eventPhase   = false;   // 是否在事件阶段
-        this._currentEvent = null;    // 当前事件数据
-        this._rerollCount  = 0;       // 本轮重roll次数
-        this._shopItems    = [];      // 当前商店遗物商品
+        this._eventPhase   = false;
+        this._currentEvent = null;
+        this._rerollCount  = 0;
+        this._shopItems    = [];
     }
 
     create(data) {
@@ -33,9 +22,8 @@ class InterludeScene extends BaseScene {
         if (!isRefresh) {
             this._fadeIn(400);
         }
-        this._initStarfield(80);
+        this._initStarfield(60);
 
-        // 若无快照，跳回菜单
         if (!GameState.run.playerSnapshot) {
             this.scene.start('MenuScene');
             return;
@@ -44,12 +32,39 @@ class InterludeScene extends BaseScene {
         const snap           = GameState.run.playerSnapshot;
         const completedRound = GameState.run.currentRound;
 
-        // 底层半透明背景
+        const T = UITheme;
+        const C = T.colors;
+
+        // 深层背景
         this.add.graphics()
-            .fillStyle(0x000011, 0.9)
+            .fillStyle(C.bgDarkest, 0.92)
             .fillRect(0, 0, 500, 700);
 
-        // 判断是否先触发事件
+        // 扫描线
+        const scanGfx = this.add.graphics().setDepth(1);
+        scanGfx.fillStyle(C.cyan, 0.015);
+        for (let sy = 0; sy < 700; sy += 4) {
+            scanGfx.fillRect(0, sy, 500, 1);
+        }
+
+        // 顶部信息栏
+        const topBar = this.add.graphics().setDepth(2);
+        topBar.fillStyle(C.bgDark, 0.9);
+        topBar.fillRect(0, 0, 500, 50);
+        topBar.fillStyle(C.cyan, 0.3);
+        topBar.fillRect(0, 50, 500, 1);
+
+        // 终端标识
+        this.add.text(16, 16, 'TERM-7 // OUTPOST-STATION', {
+            fontSize: '10px', fontFamily: T.font.family,
+            fill: C.textDim
+        }).setDepth(3);
+
+        this.add.text(484, 16, `RND-${completedRound} COMPLETE`, {
+            fontSize: '12px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textAccent, stroke: '#001a11', strokeThickness: 1
+        }).setOrigin(1, 0).setDepth(3);
+
         const eventManager = new EventManager();
         if (!skipEvent && eventManager.shouldTriggerEvent(completedRound)) {
             this._currentEvent = eventManager.drawEvent();
@@ -73,63 +88,82 @@ class InterludeScene extends BaseScene {
         const evt = this._currentEvent;
         if (!evt) { this._renderShopPhase(snap, completedRound); return; }
 
-        // 标题
-        this.add.text(250, 36, `第 ${completedRound} 轮完成`, {
-            fontSize: '20px', fontFamily: 'Arial', fill: '#aabbcc'
-        }).setOrigin(0.5);
+        const T = UITheme;
+        const C = T.colors;
 
-        this.add.text(250, 100, evt.icon, {
-            fontSize: '48px'
-        }).setOrigin(0.5);
+        // 事件标题
+        this.add.text(250, 80, '// ANOMALY DETECTED', {
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
+        }).setOrigin(0.5).setDepth(5);
 
-        this.add.text(250, 160, evt.name, {
-            fontSize: '28px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ffcc44', stroke: '#443300', strokeThickness: 3
-        }).setOrigin(0.5);
+        this.add.text(250, 130, evt.icon, {
+            fontSize: '42px'
+        }).setOrigin(0.5).setDepth(5);
 
-        this.add.text(250, 200, evt.desc, {
-            fontSize: '14px', fontFamily: 'Arial', fill: '#8899aa',
+        this.add.text(250, 185, evt.name, {
+            fontSize: '24px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textGold, stroke: '#221100', strokeThickness: 2
+        }).setOrigin(0.5).setDepth(5);
+
+        this.add.text(250, 225, evt.desc, {
+            fontSize: '13px', fontFamily: T.font.family, fill: C.textSecondary,
             wordWrap: { width: 360 }, align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(5);
 
         // 选项卡牌
-        const CARD_W = 140, CARD_H = 140;
+        const CARD_W = 150, CARD_H = 150;
         const TOTAL  = evt.options.length;
         const startX = 250 - ((TOTAL - 1) * 0.5) * (CARD_W + 12);
 
         for (let i = 0; i < TOTAL; i++) {
             const opt = evt.options[i];
             const cx  = startX + i * (CARD_W + 12);
-            const cy  = 380;
+            const cy  = 390;
             this._drawEventCard(cx, cy, CARD_W, CARD_H, opt, snap);
         }
 
-        // 提示
-        this.add.text(250, 560, '选择一个选项继续', {
-            fontSize: '12px', fontFamily: 'Arial', fill: '#445566'
-        }).setOrigin(0.5);
+        this.add.text(250, 550, '> SELECT OPTION TO PROCEED', {
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
+        }).setOrigin(0.5).setDepth(5);
     }
 
     _drawEventCard(cx, cy, W, H, option, snap) {
+        const T = UITheme;
+        const C = T.colors;
         const x0 = cx - W / 2, y0 = cy - H / 2;
 
         const gfx = this.add.graphics().setDepth(5);
         const paintBg = (hover) => {
             gfx.clear();
-            gfx.fillStyle(hover ? 0x1a1a3a : 0x0a0a1e, 0.95);
-            gfx.fillRoundedRect(x0, y0, W, H, 10);
-            gfx.lineStyle(1.5, hover ? 0xffaa44 : 0x554422, 1);
-            gfx.strokeRoundedRect(x0, y0, W, H, 10);
+            gfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, 0.95);
+            gfx.fillRoundedRect(x0, y0, W, H, 5);
+            // 扫描线
+            gfx.fillStyle(C.cyan, 0.015);
+            for (let sy = y0; sy < y0 + H; sy += 4) {
+                gfx.fillRect(x0, sy, W, 1);
+            }
+            gfx.lineStyle(1.5, hover ? C.orange : C.orangeDim, hover ? 1.0 : 0.55);
+            gfx.strokeRoundedRect(x0, y0, W, H, 5);
+            // 左侧强调条
+            gfx.fillStyle(C.orange, hover ? 1.0 : 0.4);
+            gfx.fillRect(x0 + 1, y0 + 14, 3, H - 28);
+            // 角落
+            const cL = 8;
+            gfx.lineStyle(1, C.orange, 0.4);
+            gfx.lineBetween(x0, y0 + cL, x0 + cL, y0);
+            gfx.lineBetween(x0 + W - cL, y0, x0 + W, y0 + cL);
+            gfx.lineBetween(x0, y0 + H - cL, x0 + cL, y0 + H);
+            gfx.lineBetween(x0 + W - cL, y0 + H, x0 + W, y0 + H - cL);
         };
         paintBg(false);
 
         this.add.text(cx, y0 + 40, option.label, {
-            fontSize: '14px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ffddaa', wordWrap: { width: W - 16 }, align: 'center'
+            fontSize: '14px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textGold, wordWrap: { width: W - 16 }, align: 'center'
         }).setOrigin(0.5).setDepth(6);
 
         this.add.text(cx, y0 + 80, option.desc, {
-            fontSize: '11px', fontFamily: 'Arial', fill: '#8899aa',
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textSecondary,
             wordWrap: { width: W - 16 }, align: 'center'
         }).setOrigin(0.5).setDepth(6);
 
@@ -140,7 +174,6 @@ class InterludeScene extends BaseScene {
         hit.on('pointerdown', () => {
             option.effect(snap, GameState.run, {
                 acquireRelic: (itemId) => {
-                    // 通过快照传递遗物获取
                     if (!snap.relicsToAcquire) snap.relicsToAcquire = [];
                     snap.relicsToAcquire.push(itemId);
                 }
@@ -153,13 +186,6 @@ class InterludeScene extends BaseScene {
     // ── 商店阶段 ──────────────────────────────────────────
 
     _renderShopPhase(snap, completedRound) {
-        // 清除旧内容（事件阶段留下来的）
-        if (this._eventPhase === false) {
-            // 已经在商店阶段，仅刷新时重建
-        }
-
-        // 如果是事件后切换到商店，需要重建场景
-        // 简化处理：直接 restart
         if (this._currentEvent && !this._shopEntered) {
             this._shopEntered = true;
             this.scene.restart({ skipEvent: true, refreshShop: true });
@@ -167,29 +193,31 @@ class InterludeScene extends BaseScene {
         }
         this._shopEntered = false;
 
-        // 标题
-        this.add.text(250, 36, `第 ${completedRound} 轮完成！`, {
-            fontSize: '34px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ffee44', stroke: '#443300', strokeThickness: 4
-        }).setOrigin(0.5);
+        const T = UITheme;
+        const C = T.colors;
+
+        // 商店标题
+        this.add.text(250, 66, '// ARMORY SUPPLY STATION', {
+            fontSize: '18px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textAccent, stroke: '#001a11', strokeThickness: 2
+        }).setOrigin(0.5).setDepth(5);
+
+        // 分隔线
+        const sepGfx = this.add.graphics().setDepth(5);
+        sepGfx.fillStyle(C.cyan, 0.2);
+        sepGfx.fillRect(50, 90, 400, 1);
 
         // 状态栏
-        this._hpTxt = this.add.text(130, 82, '', {
-            fontSize: '21px', fontFamily: 'Arial'
-        }).setOrigin(0.5);
+        this._hpTxt = this.add.text(100, 100, '', {
+            fontSize: '13px', fontFamily: T.font.family
+        }).setOrigin(0.5).setDepth(6);
 
-        this._goldTxt = this.add.text(370, 82, '', {
-            fontSize: '18px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ffcc44'
-        }).setOrigin(0.5);
+        this._goldTxt = this.add.text(400, 100, '', {
+            fontSize: '15px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textGold, stroke: '#221100', strokeThickness: 1
+        }).setOrigin(0.5).setDepth(6);
 
         this._updateStatus(snap);
-
-        // 分区标题
-        this.add.text(250, 114, '─── 军备补给站 ───', {
-            fontSize: '14px', fontFamily: 'Arial',
-            fill: '#556677', stroke: '#000011', strokeThickness: 2
-        }).setOrigin(0.5);
 
         // 商店卡牌
         this._renderShop(snap);
@@ -200,22 +228,22 @@ class InterludeScene extends BaseScene {
         // 继续按钮
         this._addContinueButton();
 
-        // 提示
-        this.add.text(250, 672, '点击卡牌消耗金币购买 | 重roll可刷新遗物商品', {
-            fontSize: '11px', fontFamily: 'Arial', fill: '#334455'
-        }).setOrigin(0.5);
+        this.add.text(250, 672, '> SELECT ITEM TO PURCHASE | REROLL REFRESHES RELICS', {
+            fontSize: '10px', fontFamily: T.font.family, fill: C.textDim
+        }).setOrigin(0.5).setDepth(5);
     }
 
     _updateStatus(snap) {
+        const T = UITheme;
+        const C = T.colors;
         if (snap && this._hpTxt) {
-            let hearts = '';
-            for (let i = 0; i < snap.maxHp; i++) {
-                hearts += i < snap.hp ? '❤' : '🖤';
-            }
-            this._hpTxt.setText(hearts);
+            const hpRatio = snap.maxHp > 0 ? snap.hp / snap.maxHp : 0;
+            const hpColor = hpRatio > 0.6 ? C.textAccent : (hpRatio > 0.3 ? '#ffcc22' : '#ff3344');
+            this._hpTxt.setText(`HULL: ${snap.hp}/${snap.maxHp}`);
+            this._hpTxt.setStyle({ fill: hpColor });
         }
         if (this._goldTxt) {
-            this._goldTxt.setText(`💰 ${GameState.run.gold}`);
+            this._goldTxt.setText(`CR: ${GameState.run.gold}`);
         }
     }
 
@@ -223,11 +251,11 @@ class InterludeScene extends BaseScene {
         const items = this._buildItems(snap);
 
         const cols  = 3;
-        const cardW = 148, cardH = 100;
+        const cardW = 150, cardH = 100;
         const gapX  = 6,   gapY  = 6;
         const totalW = cols * cardW + (cols - 1) * gapX;
         const startX = (500 - totalW) / 2;
-        const startY = 134;
+        const startY = 120;
 
         for (let i = 0; i < items.length; i++) {
             const col = i % cols;
@@ -241,25 +269,23 @@ class InterludeScene extends BaseScene {
     _buildItems(snap) {
         const items = [];
 
-        // ── HP 恢复 ───────────────────────────────────────────
         items.push({
-            icon: '❤', label: 'HP +1', desc: '立即恢复一点生命',
-            cost: 10,
+            icon: '+', label: 'HULL +1', desc: 'Restore 1 hull point',
+            cost: 10, accent: 0x22ff88,
             canBuy() { return snap.hp < snap.maxHp && GameState.run.gold >= 10; },
             onBuy()  { snap.hp = Math.min(snap.hp + 1, snap.maxHp); GameState.run.gold -= 10; }
         });
 
         items.push({
-            icon: '💊', label: '全满回血', desc: '生命值完全恢复',
-            cost: 30,
+            icon: '++', label: 'HULL MAX', desc: 'Full hull restoration',
+            cost: 30, accent: 0x22ff88,
             canBuy() { return snap.hp < snap.maxHp && GameState.run.gold >= 30; },
             onBuy()  { snap.hp = snap.maxHp; GameState.run.gold -= 30; }
         });
 
-        // ── HP 上限 ───────────────────────────────────────────
         items.push({
-            icon: '🛡', label: 'HP上限 +1', desc: '永久增加最大生命',
-            cost: 25,
+            icon: 'UP', label: 'HULL+1 MAX', desc: 'Increase max hull',
+            cost: 25, accent: 0x22ff88,
             canBuy() { return snap.maxHp < 10 && GameState.run.gold >= 25; },
             onBuy()  {
                 snap.maxHp++;
@@ -268,63 +294,58 @@ class InterludeScene extends BaseScene {
             }
         });
 
-        // ── 属性强化 ──────────────────────────────────────────
         items.push({
-            icon: '💨', label: '提升移速', desc: '移动速度 +15%',
-            cost: 20,
+            icon: 'SPD', label: 'THRUST +15%', desc: 'Movement speed up',
+            cost: 20, accent: 0x00ffcc,
             canBuy() { return snap.moveSpeed < 500 && GameState.run.gold >= 20; },
             onBuy()  { snap.moveSpeed = Math.min(500, snap.moveSpeed * 1.15); GameState.run.gold -= 20; }
         });
 
         items.push({
-            icon: '⚡', label: '加速射击', desc: '射击冷却 -10%',
-            cost: 20,
+            icon: 'FIR', label: 'FIRE RATE +10%', desc: 'Shoot faster',
+            cost: 20, accent: 0xffcc22,
             canBuy() { return snap.fireCooldown > 60 && GameState.run.gold >= 20; },
             onBuy()  { snap.fireCooldown = Math.max(60, snap.fireCooldown * 0.9); GameState.run.gold -= 20; }
         });
 
-        // ── 武器升级 ──────────────────────────────────────────
         for (const w of snap.weapons) {
             if (w.level >= 3) continue;
-            const wd   = typeof WEAPON_DATA !== 'undefined' ? WEAPON_DATA[w.id] : null;
+            const wd = typeof WEAPON_DATA !== 'undefined' ? WEAPON_DATA[w.id] : null;
             if (!wd) continue;
             const cost = 15 + w.level * 5;
             const _w = w, _cost = cost;
             items.push({
-                icon:  wd.icon,
-                label: `升级 ${wd.name}`,
-                desc:  `${wd.name} → Lv${_w.level + 1}`,
-                cost:  _cost,
+                icon:  'WPN',
+                label: `UPG ${wd.name}`,
+                desc:  `${wd.name} => LV${_w.level + 1}`,
+                cost:  _cost, accent: 0xff8822,
                 canBuy() { return _w.level < 3 && GameState.run.gold >= _cost; },
                 onBuy()  { _w.level++; GameState.run.gold -= _cost; }
             });
         }
 
-        // ── 武器进化（新增）──────────────────────────────────
         for (const w of snap.weapons) {
             if (w.level < 3) continue;
             const evo = typeof WEAPON_EVOLUTION !== 'undefined' ? WEAPON_EVOLUTION[w.id] : null;
             if (!evo) continue;
-            // 检查是否持有催化剂遗物
             const hasCatalyst = snap.relics && snap.relics.some(r => r.id === evo.catalyst);
             if (!hasCatalyst) continue;
             const cost = 40;
             const _w = w, _evo = evo;
             items.push({
-                icon:  _evo.evolvedIcon,
-                label: `进化 ${_evo.evolvedName}`,
+                icon:  'EVO',
+                label: `EVOLVE ${_evo.evolvedName}`,
                 desc:  _evo.evolvedDesc,
-                cost:  cost,
+                cost:  cost, accent: 0xaa44ff,
                 canBuy() { return GameState.run.gold >= cost; },
                 onBuy()  {
                     _w.id = _evo.evolvedId;
-                    _w.level = 4;  // 进化标记
+                    _w.level = 4;
                     GameState.run.gold -= cost;
                 }
             });
         }
 
-        // ── 随机遗物购买（新增）──────────────────────────────
         if (!this._shopItems || this._shopItems.length === 0) {
             this._shopItems = this._generateRelicShop();
         }
@@ -335,15 +356,14 @@ class InterludeScene extends BaseScene {
             const cost = rd.tier === 2 ? 35 : 20;
             const _rd = relicId, _cost2 = cost;
             items.push({
-                icon:  rd.icon,
-                label: `遗物: ${rd.name}`,
+                icon:  'REL',
+                label: `RELIC: ${rd.name}`,
                 desc:  rd.desc,
-                cost:  _cost2,
+                cost:  _cost2, accent: 0x44aaff,
                 canBuy() { return GameState.run.gold >= _cost2; },
                 onBuy()  {
                     if (!snap.relicsToAcquire) snap.relicsToAcquire = [];
                     snap.relicsToAcquire.push(_rd);
-                    // 从商店列表中移除
                     const idx = this._shopItems.indexOf(_rd);
                     if (idx >= 0) this._shopItems.splice(idx, 1);
                     GameState.run.gold -= _cost2;
@@ -355,7 +375,6 @@ class InterludeScene extends BaseScene {
     }
 
     _generateRelicShop() {
-        // 随机选 2 个遗物放入商店
         const pool = Object.values(PASSIVE_ITEM_DATA);
         const picked = [];
         const shuffled = [...pool].sort(() => Math.random() - 0.5);
@@ -366,43 +385,59 @@ class InterludeScene extends BaseScene {
     }
 
     _drawCard(x, y, w, h, item, snap) {
+        const T = UITheme;
+        const C = T.colors;
         const depth = 5;
         const avail = item.canBuy();
+        const accent = item.accent || C.cyan;
 
         const bg = this.add.graphics().setDepth(depth);
         const paintBg = (hover) => {
             bg.clear();
-            bg.fillStyle(hover ? 0x0c1e3a : 0x060e1e, avail ? 0.95 : 0.5);
-            bg.fillRoundedRect(x, y, w, h, 8);
-            bg.lineStyle(1.5,
-                avail ? (hover ? 0x55aaff : 0x224488) : 0x1a2233,
-                avail ? 1 : 0.6);
-            bg.strokeRoundedRect(x, y, w, h, 8);
+            // 背景
+            bg.fillStyle(hover ? C.bgPanelLight : C.bgPanel, avail ? 0.95 : 0.5);
+            bg.fillRoundedRect(x, y, w, h, 4);
+            // 扫描线
+            if (avail) {
+                bg.fillStyle(accent, 0.012);
+                for (let sy = y; sy < y + h; sy += 4) {
+                    bg.fillRect(x, sy, w, 1);
+                }
+            }
+            // 边框
+            bg.lineStyle(1.5, avail ? (hover ? accent : accent) : 0x1a2233, avail ? (hover ? 1.0 : 0.5) : 0.3);
+            bg.strokeRoundedRect(x, y, w, h, 4);
+            // 左侧条
+            bg.fillStyle(accent, avail ? (hover ? 1.0 : 0.4) : 0.15);
+            bg.fillRect(x + 1, y + 10, 2, h - 20);
         };
         paintBg(false);
 
-        const alpha = avail ? 1 : 0.38;
+        const alpha = avail ? 1 : 0.35;
 
-        this.add.text(x + w / 2, y + 14, item.icon, {
-            fontSize: '20px'
-        }).setOrigin(0.5).setDepth(depth + 1).setAlpha(alpha);
+        // 代码标签
+        this.add.text(x + 10, y + 8, item.icon, {
+            fontSize: '9px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: '#' + accent.toString(16).padStart(6, '0')
+        }).setDepth(depth + 1).setAlpha(alpha);
 
-        this.add.text(x + w / 2, y + 38, item.label, {
-            fontSize: '11px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: avail ? '#ddeeff' : '#3a4a5a'
+        this.add.text(x + w / 2, y + 28, item.label, {
+            fontSize: '11px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: avail ? C.textPrimary : '#3a4a5a'
         }).setOrigin(0.5).setDepth(depth + 1);
 
-        this.add.text(x + w / 2, y + 54, item.desc, {
-            fontSize: '9px', fontFamily: 'Arial',
-            fill: avail ? '#7799aa' : '#2a3a48',
-            wordWrap: { width: w - 10 }, align: 'center'
+        this.add.text(x + w / 2, y + 48, item.desc, {
+            fontSize: '9px', fontFamily: T.font.family,
+            fill: avail ? C.textSecondary : '#2a3a48',
+            wordWrap: { width: w - 12 }, align: 'center'
         }).setOrigin(0.5, 0).setDepth(depth + 1);
 
+        // 金币价格
         const costColor = avail
-            ? (GameState.run.gold >= item.cost ? '#ffcc44' : '#ff6644')
+            ? (GameState.run.gold >= item.cost ? C.textGold : '#ff3344')
             : '#4a3a22';
-        this.add.text(x + w / 2, y + h - 12, `💰 ${item.cost}`, {
-            fontSize: '12px', fontFamily: 'Arial', fontStyle: 'bold',
+        this.add.text(x + w / 2, y + h - 14, `CR: ${item.cost}`, {
+            fontSize: '11px', fontFamily: T.font.family, fontStyle: 'bold',
             fill: costColor
         }).setOrigin(0.5).setDepth(depth + 1);
 
@@ -419,33 +454,37 @@ class InterludeScene extends BaseScene {
         }
     }
 
-    // ── 重roll 按钮 ──────────────────────────────────────────
-
     _addRerollButton(snap, completedRound) {
+        const T = UITheme;
+        const C = T.colors;
         const rerollCost = 10 + this._rerollCount * 5;
-        const btnY = 598;
+        const btnY = 600;
         const gfx  = this.add.graphics().setDepth(10);
         const canReroll = GameState.run.gold >= rerollCost;
 
         const draw = (hover) => {
             gfx.clear();
-            gfx.fillStyle(hover ? 0x1a1a38 : 0x0e0e1e, canReroll ? 0.95 : 0.5);
-            gfx.fillRoundedRect(175, btnY - 18, 150, 36, 8);
-            gfx.lineStyle(1, canReroll ? (hover ? 0x8866ff : 0x5533aa) : 0x222233, 1);
-            gfx.strokeRoundedRect(175, btnY - 18, 150, 36, 8);
+            gfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, canReroll ? 0.95 : 0.5);
+            gfx.fillRoundedRect(175, btnY - 18, 150, 36, 4);
+            gfx.lineStyle(1, canReroll ? (hover ? C.purple : C.purpleDim) : 0x222233, 1);
+            gfx.strokeRoundedRect(175, btnY - 18, 150, 36, 4);
+            if (canReroll) {
+                gfx.fillStyle(C.purple, hover ? 0.5 : 0.25);
+                gfx.fillRect(176, btnY - 6, 2, 24);
+            }
         };
         draw(false);
 
-        const txt = this.add.text(250, btnY, `🔄 重roll (${rerollCost}💰)`, {
-            fontSize: '14px', fontFamily: 'Arial',
-            fill: canReroll ? '#aa88ff' : '#444455'
+        const txt = this.add.text(250, btnY, `REROLL [CR:${rerollCost}]`, {
+            fontSize: '13px', fontFamily: T.font.family,
+            fill: canReroll ? '#cc66ff' : '#444455'
         }).setOrigin(0.5).setDepth(11);
 
         if (canReroll) {
             const hit = this.add.rectangle(250, btnY, 150, 36)
                 .setInteractive({ cursor: 'pointer' }).setDepth(12);
-            hit.on('pointerover', () => { draw(true); txt.setStyle({ fill: '#ffffff' }); });
-            hit.on('pointerout',  () => { draw(false); txt.setStyle({ fill: '#aa88ff' }); });
+            hit.on('pointerover', () => { draw(true);  txt.setStyle({ fill: '#ffffff' }); });
+            hit.on('pointerout',  () => { draw(false); txt.setStyle({ fill: '#cc66ff' }); });
             hit.on('pointerdown', () => {
                 GameState.run.gold -= rerollCost;
                 this._rerollCount++;
@@ -455,29 +494,36 @@ class InterludeScene extends BaseScene {
         }
     }
 
-    // ── 继续按钮 ──────────────────────────────────────────────
-
     _addContinueButton() {
-        const btnY = 640;
+        const T = UITheme;
+        const C = T.colors;
+        const btnY = 642;
         const gfx  = this.add.graphics().setDepth(10);
         const draw = (hover) => {
             gfx.clear();
-            gfx.fillStyle(hover ? 0x143614 : 0x0a1e0a, 0.96);
-            gfx.fillRoundedRect(150, btnY - 24, 200, 48, 12);
-            gfx.lineStyle(2, hover ? 0x55ff88 : 0x228844, 1);
-            gfx.strokeRoundedRect(150, btnY - 24, 200, 48, 12);
+            gfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, 0.96);
+            gfx.fillRoundedRect(150, btnY - 24, 200, 48, 5);
+            gfx.lineStyle(2, hover ? C.success : C.cyanDim, 1);
+            gfx.strokeRoundedRect(150, btnY - 24, 200, 48, 5);
+            // 左侧条
+            gfx.fillStyle(hover ? C.success : C.cyan, 0.6);
+            gfx.fillRect(151, btnY - 12, 3, 24);
+            // 角落
+            gfx.lineStyle(1, hover ? C.success : C.cyan, 0.4);
+            gfx.lineBetween(150, btnY - 24 + 8, 150 + 8, btnY - 24);
+            gfx.lineBetween(350 - 8, btnY - 24, 350, btnY - 24 + 8);
         };
         draw(false);
 
-        const txt = this.add.text(250, btnY, '继续战斗 →', {
-            fontSize: '20px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#55ffaa'
+        const txt = this.add.text(250, btnY, 'DEPLOY >>', {
+            fontSize: '18px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textAccent
         }).setOrigin(0.5).setDepth(11);
 
         const hit = this.add.rectangle(250, btnY, 200, 48)
             .setInteractive({ cursor: 'pointer' }).setDepth(12);
         hit.on('pointerover', () => { draw(true);  txt.setStyle({ fill: '#ffffff' }); });
-        hit.on('pointerout',  () => { draw(false); txt.setStyle({ fill: '#55ffaa' }); });
+        hit.on('pointerout',  () => { draw(false); txt.setStyle({ fill: C.textAccent }); });
         hit.on('pointerdown', () => {
             GameState.run.currentRound++;
             GameState.resetRound();
@@ -488,11 +534,11 @@ class InterludeScene extends BaseScene {
             });
         });
 
-        const menuTxt = this.add.text(250, 668, '← 放弃本局，返回主菜单', {
-            fontSize: '12px', fontFamily: 'Arial', fill: '#334455'
+        const menuTxt = this.add.text(250, 672, '< ABORT MISSION', {
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5).setDepth(11).setInteractive({ cursor: 'pointer' });
-        menuTxt.on('pointerover', () => menuTxt.setStyle({ fill: '#8899bb' }));
-        menuTxt.on('pointerout',  () => menuTxt.setStyle({ fill: '#334455' }));
+        menuTxt.on('pointerover', () => menuTxt.setStyle({ fill: C.textDanger }));
+        menuTxt.on('pointerout',  () => menuTxt.setStyle({ fill: C.textDim }));
         menuTxt.on('pointerdown', () => {
             this.cameras.main.fadeOut(220, 0, 0, 0);
             this.cameras.main.once('camerafadeoutcomplete', () => {

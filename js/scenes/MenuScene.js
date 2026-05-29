@@ -1,9 +1,14 @@
+/**
+ * MenuScene — 赛博朋克主菜单
+ *
+ * 设计：霓虹标题、数据网格背景、全息面板按钮、等宽终端字体
+ */
 class MenuScene extends BaseScene {
 
     create() {
-        this._initStarfield(140);
-        this._drawPlanet();
-        this._drawNebula();
+        this._initStarfield(100);
+        this._drawGrid();
+        this._drawGlitchBars();
         this._drawTitle();
         this._drawButtons();
         this._drawFooter();
@@ -14,119 +19,142 @@ class MenuScene extends BaseScene {
         this._tickStars();
     }
 
-    // ── 背景装饰 ──────────────────────────────────────────
+    // ── 数据网格背景 ──────────────────────────────────────────
 
-    _drawNebula() {
+    _drawGrid() {
+        const T = UITheme;
+        const C = T.colors;
         const g = this.add.graphics();
-        // 左下角朦胧蓝紫色星云
-        const steps = [[0x1133aa, 0.06], [0x2244bb, 0.04], [0x3355cc, 0.03]];
-        steps.forEach(([c, a]) => {
-            g.fillStyle(c, a);
-            g.fillEllipse(60, 620, 220, 160);
-        });
-        // 右上角橙红色星云
-        [[0xaa4411, 0.05], [0xbb5522, 0.04]].forEach(([c, a]) => {
-            g.fillStyle(c, a);
-            g.fillEllipse(460, 80, 180, 140);
-        });
+
+        // 深层背景
+        g.fillStyle(C.bgDarkest, 0.95);
+        g.fillRect(0, 0, 500, 700);
+
+        // 网格线
+        g.lineStyle(0.5, C.cyanDim, 0.12);
+        for (let x = 0; x <= 500; x += 40) {
+            g.lineBetween(x, 0, x, 700);
+        }
+        for (let y = 0; y <= 700; y += 40) {
+            g.lineBetween(0, y, 500, y);
+        }
+
+        // 中心聚焦光晕
+        g.fillStyle(C.cyanDark, 0.15);
+        g.fillEllipse(250, 350, 300, 400);
     }
 
-    _drawPlanet() {
+    // ── 故障条装饰 ──────────────────────────────────────────
+
+    _drawGlitchBars() {
         const g = this.add.graphics();
-        // 光晕
-        for (let r = 160; r >= 20; r -= 20) {
-            g.fillStyle(0x0d1f44, 0.035);
-            g.fillCircle(430, 590, r);
-        }
-        // 星球本体
-        g.fillStyle(0x152d50, 0.6);
-        g.fillCircle(430, 590, 100);
-        g.fillStyle(0x1e3d6a, 0.4);
-        g.fillCircle(400, 568, 72);
-        // 表面纹理
-        g.lineStyle(1, 0x2a5080, 0.25);
-        g.strokeEllipse(430, 590, 170, 28);
-        g.strokeEllipse(430, 590, 210, 18);
-        // 光环
-        g.lineStyle(2, 0x2255bb, 0.18);
-        g.strokeEllipse(430, 590, 310, 48);
+        const C = UITheme.colors;
+
+        // 随机水平故障条
+        const yPositions = [180, 350, 520, 650];
+        yPositions.forEach(y => {
+            const x = Phaser.Math.Between(0, 400);
+            const w = Phaser.Math.Between(20, 80);
+            g.fillStyle(C.cyan, Phaser.Math.FloatBetween(0.03, 0.08));
+            g.fillRect(x, y, w, 1);
+        });
     }
 
     // ── 标题区 ────────────────────────────────────────────
 
     _drawTitle() {
-        // 大标题背景光晕
+        const T = UITheme;
+        const C = T.colors;
+
+        // 光晕
         const halo = this.add.graphics();
-        halo.fillStyle(0x0044cc, 0.07);
-        halo.fillEllipse(250, 115, 420, 130);
+        halo.fillStyle(C.cyanDark, 0.12);
+        halo.fillEllipse(250, 110, 380, 120);
 
-        // 阴影层（模拟发光）
-        this.add.text(253, 100, '太空射击', {
-            fontSize: '56px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#001166'
-        }).setOrigin(0.5).setAlpha(0.5);
-
-        // 主标题
-        const title = this.add.text(250, 97, '太空射击', {
-            fontSize: '56px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#e8f4ff',
-            stroke: '#1155ee', strokeThickness: 5
+        // 主标题 — 赛博朋克终端风格
+        const title = this.add.text(250, 95, 'VOID SHOOTER', {
+            fontSize: '44px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textAccent, stroke: '#001a11', strokeThickness: 4
         }).setOrigin(0.5);
 
         this.tweens.add({
-            targets: title, scaleX: 1.025, scaleY: 1.025,
+            targets: title, scaleX: 1.02, scaleY: 1.02,
             duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
         });
 
-        // 英文副标题
-        this.add.text(250, 160, 'S · P · A · C · E   S · H · O · O · T · E · R', {
-            fontSize: '11px', fontFamily: 'Arial', fill: '#4466aa'
+        // 副标题 — 系统版本号风格
+        this.add.text(250, 145, 'v2.0.77 // SPACE-ROGUE PROTOCOL', {
+            fontSize: '10px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5);
 
-        // 装饰分割线
+        // 装饰线
         const dg = this.add.graphics();
-        dg.lineStyle(1, 0x2255aa, 0.5);
-        dg.lineBetween(75, 182, 200, 182);
-        dg.lineBetween(300, 182, 425, 182);
-        this.add.text(250, 182, '✦', { fontSize: '13px', fill: '#334d88' }).setOrigin(0.5);
+        dg.fillStyle(C.cyan, 0.35);
+        dg.fillRect(60, 170, 160, 1);
+        dg.fillRect(280, 170, 160, 1);
+        // 中心菱形
+        dg.fillStyle(C.cyan, 0.5);
+        dg.fillRect(247, 167, 6, 6);
     }
 
     // ── 菜单按钮 ──────────────────────────────────────────
 
     _drawButtons() {
         [
-            { label: '开始游戏', sub: 'START GAME',   icon: '🚀', target: 'CharacterSelectScene', accent: 0x2277ff },
-            { label: '成    就',  sub: 'ACHIEVEMENTS', icon: '🏆', target: 'AchievementsScene', accent: 0xffaa22 },
-            { label: '游戏设置', sub: 'SETTINGS',     icon: '⚙',  target: 'SettingsScene',     accent: 0x33cc77 },
-        ].forEach((item, i) => this._makeButton(250, 272 + i * 90, item));
+            { label: 'DEPLOY',    sub: '// START MISSION',  icon: '>', target: 'CharacterSelectScene', accent: 0x00ffcc },
+            { label: 'RECORDS',   sub: '// ACHIEVEMENTS',   icon: '#', target: 'AchievementsScene',     accent: 0xff8822 },
+            { label: 'CONFIG',    sub: '// SETTINGS',       icon: '*', target: 'SettingsScene',         accent: 0x22ff88 },
+        ].forEach((item, i) => this._makeButton(250, 260 + i * 85, item));
     }
 
     _makeButton(cx, cy, { label, sub, icon, target, accent }) {
-        const W = 310, H = 68;
+        const T = UITheme;
+        const C = T.colors;
+        const W = 310, H = 66;
         const x0 = cx - W / 2, y0 = cy - H / 2;
 
         const gfx = this.add.graphics();
         const draw = (hover) => {
             gfx.clear();
-            if (hover) {                          // 外层辉光
-                gfx.lineStyle(1, accent, 0.25);
-                gfx.strokeRoundedRect(x0 - 4, y0 - 4, W + 8, H + 8, 12);
+
+            // 辉光
+            if (hover) {
+                gfx.lineStyle(2, accent, 0.2);
+                gfx.strokeRoundedRect(x0 - 3, y0 - 3, W + 6, H + 6, 6);
             }
-            gfx.fillStyle(hover ? 0x0a1a38 : 0x050e1e, 0.92);
-            gfx.fillRoundedRect(x0, y0, W, H, 9);
-            gfx.lineStyle(1, accent, hover ? 0.9 : 0.35);
-            gfx.strokeRoundedRect(x0, y0, W, H, 9);
-            gfx.fillStyle(accent, hover ? 1 : 0.55);
-            gfx.fillRoundedRect(x0, y0 + 12, 4, H - 24, 2);
+
+            // 背景
+            gfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, 0.94);
+            gfx.fillRoundedRect(x0, y0, W, H, 5);
+            // 扫描线
+            gfx.fillStyle(accent, 0.015);
+            for (let sy = y0; sy < y0 + H; sy += 4) {
+                gfx.fillRect(x0, sy, W, 1);
+            }
+            // 边框
+            gfx.lineStyle(1.5, accent, hover ? 1.0 : 0.4);
+            gfx.strokeRoundedRect(x0, y0, W, H, 5);
+
+            // 左侧强调条
+            gfx.fillStyle(accent, hover ? 1.0 : 0.5);
+            gfx.fillRect(x0 + 1, y0 + 12, 4, H - 24);
+
+            // 角落
+            const cL = 8;
+            gfx.lineStyle(1, accent, 0.4);
+            gfx.lineBetween(x0, y0 + cL, x0 + cL, y0);
+            gfx.lineBetween(x0 + W - cL, y0, x0 + W, y0 + cL);
+            gfx.lineBetween(x0, y0 + H - cL, x0 + cL, y0 + H);
+            gfx.lineBetween(x0 + W - cL, y0 + H, x0 + W, y0 + H - cL);
         };
         draw(false);
 
-        const ox = { icon: x0 + 36, label: x0 + 118, sub: x0 + 119, chev: x0 + W - 22 };
+        const ox = { icon: x0 + 32, label: x0 + 60, sub: x0 + 61, chev: x0 + W - 22 };
 
-        const iconTxt  = this.add.text(ox.icon,  cy,      icon,  { fontSize: '26px' }).setOrigin(0.5);
-        const labelTxt = this.add.text(ox.label, cy - 9,  label, { fontSize: '20px', fontFamily: 'Arial', fontStyle: 'bold', fill: '#ddeeff' }).setOrigin(0, 0.5);
-        const subTxt   = this.add.text(ox.sub,   cy + 12, sub,   { fontSize: '10px', fontFamily: 'Arial', fill: '#3d5a88' }).setOrigin(0, 0.5);
-        const chevTxt  = this.add.text(ox.chev,  cy,      '›',   { fontSize: '26px', fontFamily: 'Arial', fill: '#2d3f66' }).setOrigin(0.5);
+        const iconTxt  = this.add.text(ox.icon,  cy,      icon,  { fontSize: '20px', fontFamily: T.font.family, fontStyle: 'bold', fill: '#' + accent.toString(16).padStart(6, '0') }).setOrigin(0.5);
+        const labelTxt = this.add.text(ox.label, cy - 10, label, { fontSize: '18px', fontFamily: T.font.family, fontStyle: 'bold', fill: C.textPrimary }).setOrigin(0, 0.5);
+        const subTxt   = this.add.text(ox.sub,   cy + 10, sub,   { fontSize: '10px', fontFamily: T.font.family, fill: C.textDim }).setOrigin(0, 0.5);
+        const chevTxt  = this.add.text(ox.chev,  cy,      '>>',  { fontSize: '14px', fontFamily: T.font.family, fill: C.textDim }).setOrigin(0.5);
 
         const allTxt = [iconTxt, labelTxt, subTxt, chevTxt];
 
@@ -135,7 +163,7 @@ class MenuScene extends BaseScene {
         hit.on('pointerover', () => {
             draw(true);
             labelTxt.setStyle({ fill: '#ffffff' });
-            chevTxt.setStyle({ fill: '#99bbee' });
+            chevTxt.setStyle({ fill: '#' + accent.toString(16).padStart(6, '0') });
             this.tweens.killTweensOf(allTxt);
             this.tweens.add({ targets: iconTxt,  x: ox.icon  + 6, duration: 90, ease: 'Power2' });
             this.tweens.add({ targets: labelTxt, x: ox.label + 6, duration: 90, ease: 'Power2' });
@@ -145,8 +173,8 @@ class MenuScene extends BaseScene {
 
         hit.on('pointerout', () => {
             draw(false);
-            labelTxt.setStyle({ fill: '#ddeeff' });
-            chevTxt.setStyle({ fill: '#2d3f66' });
+            labelTxt.setStyle({ fill: C.textPrimary });
+            chevTxt.setStyle({ fill: C.textDim });
             this.tweens.killTweensOf(allTxt);
             this.tweens.add({ targets: iconTxt,  x: ox.icon,  duration: 90, ease: 'Power2' });
             this.tweens.add({ targets: labelTxt, x: ox.label, duration: 90, ease: 'Power2' });
@@ -163,11 +191,13 @@ class MenuScene extends BaseScene {
     // ── 底部提示 ─────────────────────────────────────────
 
     _drawFooter() {
-        this.add.text(250, 668, '← → ↑ ↓  移动飞船   |   空格  射击', {
-            fontSize: '11px', fontFamily: 'Arial', fill: '#263850'
+        const T = UITheme;
+        const C = T.colors;
+        this.add.text(250, 668, 'WASD // MOVE  |  SPACE // FIRE  |  ARROWS // ALT', {
+            fontSize: '10px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5);
-        this.add.text(250, 684, 'v1.0.0', {
-            fontSize: '10px', fontFamily: 'Arial', fill: '#1e2d3d'
+        this.add.text(250, 684, 'VOID SHOOTER v2.0.77 // Z.AI-CORP', {
+            fontSize: '9px', fontFamily: T.font.family, fill: '#1a2a3a'
         }).setOrigin(0.5);
     }
 }

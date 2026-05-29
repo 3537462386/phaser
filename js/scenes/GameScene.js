@@ -464,54 +464,90 @@ class GameScene extends Phaser.Scene {
     }
 
     _showGameOverScreen() {
-        const overlay = this.add.graphics().setDepth(60);
-        overlay.fillStyle(0x000011, 0.8);
-        overlay.fillRect(0, 0, 500, 700);
+        const T = UITheme;
+        const C = T.colors;
 
-        this.add.text(250, 180, '游戏结束', {
-            fontSize: '52px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ff4455', stroke: '#330011', strokeThickness: 5
+        // 系统崩溃遮罩
+        const overlay = this.add.graphics().setDepth(60);
+        overlay.fillStyle(C.bgDarkest, 0.88);
+        overlay.fillRect(0, 0, 500, 700);
+        // 扫描线
+        overlay.fillStyle(C.pink, 0.015);
+        for (let sy = 0; sy < 700; sy += 4) {
+            overlay.fillRect(0, sy, 500, 1);
+        }
+        // 故障条
+        overlay.fillStyle(C.pink, 0.06);
+        overlay.fillRect(0, 200, 500, 2);
+        overlay.fillRect(0, 420, 500, 1);
+
+        // 标题
+        this.add.text(250, 170, 'SYSTEM FAILURE', {
+            fontSize: '38px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textDanger, stroke: '#220011', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(61);
+
+        this.add.text(250, 210, '// HULL INTEGRITY: 0%', {
+            fontSize: '12px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5).setDepth(61);
 
         const m = Math.floor(this.elapsedTime / 60);
         const s = Math.floor(this.elapsedTime % 60);
         const timeStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 
-        // 遗物统计
         const relicCount = this.passiveItemManager.count;
 
-        [
-            `最终轮数  第 ${GameState.run.currentRound} 轮`,
-            `存活时间  ${timeStr}`,
-            `击杀数量  ${this.killCount}`,
-            `最终等级  Lv.${this.levelingSystem.level}`,
-            `持有遗物  ${relicCount} 件`
-        ].forEach((line, i) => {
-            this.add.text(250, 250 + i * 40, line, {
-                fontSize: '18px', fontFamily: 'Arial',
-                fill: '#aabbcc', stroke: '#000011', strokeThickness: 2
-            }).setOrigin(0.5).setDepth(61);
+        // 数据行
+        const stats = [
+            { label: 'ROUNDS', value: `${GameState.run.currentRound}` },
+            { label: 'SURVIVAL', value: timeStr },
+            { label: 'KILLS', value: `${this.killCount}` },
+            { label: 'LEVEL', value: `LV.${this.levelingSystem.level}` },
+            { label: 'RELICS', value: `${relicCount}` },
+        ];
+
+        stats.forEach((stat, i) => {
+            const y = 260 + i * 32;
+            this.add.text(120, y, stat.label, {
+                fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
+            }).setOrigin(0, 0.5).setDepth(61);
+            // 分隔点
+            const dots = '.'.repeat(20 - stat.label.length);
+            this.add.text(190, y, dots, {
+                fontSize: '11px', fontFamily: T.font.family, fill: '#1a2a3a'
+            }).setOrigin(0, 0.5).setDepth(61);
+            this.add.text(380, y, stat.value, {
+                fontSize: '14px', fontFamily: T.font.family, fontStyle: 'bold', fill: C.textPrimary
+            }).setOrigin(1, 0.5).setDepth(61);
         });
 
-        // 重新开始
+        // 分隔线
+        const sepGfx = this.add.graphics().setDepth(61);
+        sepGfx.fillStyle(C.pink, 0.25);
+        sepGfx.fillRect(80, 440, 340, 1);
+
+        // 重新启动按钮
         const btnGfx = this.add.graphics().setDepth(61);
         const btnDraw = (hover) => {
             btnGfx.clear();
-            btnGfx.fillStyle(hover ? 0x0a1a38 : 0x050e1e, 0.95);
-            btnGfx.fillRoundedRect(165, 500, 170, 52, 10);
-            btnGfx.lineStyle(1.5, hover ? 0x4488ff : 0x2244aa, 1);
-            btnGfx.strokeRoundedRect(165, 500, 170, 52, 10);
+            btnGfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, 0.96);
+            btnGfx.fillRoundedRect(155, 470, 190, 50, 5);
+            btnGfx.lineStyle(1.5, hover ? C.cyan : C.cyanDim, 1);
+            btnGfx.strokeRoundedRect(155, 470, 190, 50, 5);
+            // 左侧条
+            btnGfx.fillStyle(C.cyan, hover ? 1.0 : 0.4);
+            btnGfx.fillRect(156, 482, 3, 26);
         };
         btnDraw(false);
 
-        const btnTxt = this.add.text(250, 526, '重新开始', {
-            fontSize: '20px', fontFamily: 'Arial', fontStyle: 'bold', fill: '#99bbee'
+        const btnTxt = this.add.text(250, 495, 'REBOOT >>', {
+            fontSize: '18px', fontFamily: T.font.family, fontStyle: 'bold', fill: C.textAccent
         }).setOrigin(0.5).setDepth(62);
 
-        const btnHit = this.add.rectangle(250, 526, 170, 52)
+        const btnHit = this.add.rectangle(250, 495, 190, 50)
             .setInteractive({ cursor: 'pointer' }).setDepth(63);
         btnHit.on('pointerover', () => { btnDraw(true);  btnTxt.setStyle({ fill: '#ffffff' }); });
-        btnHit.on('pointerout',  () => { btnDraw(false); btnTxt.setStyle({ fill: '#99bbee' }); });
+        btnHit.on('pointerout',  () => { btnDraw(false); btnTxt.setStyle({ fill: C.textAccent }); });
         btnHit.on('pointerdown', () => {
             this.cameras.main.fadeOut(220, 0, 0, 0);
             this.cameras.main.once('camerafadeoutcomplete', () => {
@@ -519,11 +555,11 @@ class GameScene extends Phaser.Scene {
             });
         });
 
-        const menuTxt = this.add.text(250, 574, '← 返回主菜单', {
-            fontSize: '14px', fontFamily: 'Arial', fill: '#445566'
+        const menuTxt = this.add.text(250, 545, '< ABORT TO MAINFRAME', {
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5).setDepth(62).setInteractive({ cursor: 'pointer' });
-        menuTxt.on('pointerover', () => menuTxt.setStyle({ fill: '#aabbcc' }));
-        menuTxt.on('pointerout',  () => menuTxt.setStyle({ fill: '#445566' }));
+        menuTxt.on('pointerover', () => menuTxt.setStyle({ fill: C.textDanger }));
+        menuTxt.on('pointerout',  () => menuTxt.setStyle({ fill: C.textDim }));
         menuTxt.on('pointerdown', () => {
             this.cameras.main.fadeOut(220, 0, 0, 0);
             this.cameras.main.once('camerafadeoutcomplete', () => {

@@ -1,6 +1,8 @@
 /**
- * UpgradePopup — 升级选择弹窗（3 张升级牌）
+ * UpgradePopup — 全息投影升级选卡（赛博朋克风格）
+ *
  * 暂停物理 + 展示选项，选择后恢复游戏
+ * 设计：全息面板、扫描线、霓虹边框、稀有度色差
  */
 class UpgradePopup {
     constructor() {
@@ -9,48 +11,54 @@ class UpgradePopup {
         this._onSelect  = null;
     }
 
-    /**
-     * 显示升级弹窗
-     * @param {Phaser.Scene} scene
-     * @param {Array} options  - 来自 UpgradeManager.getOptions()
-     * @param {Function} onSelect - (option) => void
-     */
     show(scene, options, onSelect) {
         this._scene    = scene;
         this._onSelect = onSelect;
 
-        // 暂停物理
         scene.physics.pause();
 
-        // 半透明遮罩
+        const T = UITheme;
+        const C = T.colors;
+
+        // 半透明遮罩 — 深蓝 + 扫描线
         const overlay = scene.add.graphics().setDepth(50);
-        overlay.fillStyle(0x000011, 0.75);
+        overlay.fillStyle(C.bgDarkest, 0.82);
         overlay.fillRect(0, 0, 500, 700);
+        // 扫描线
+        overlay.fillStyle(C.cyan, 0.02);
+        for (let sy = 0; sy < 700; sy += 4) {
+            overlay.fillRect(0, sy, 500, 1);
+        }
 
         // 标题
-        const title = scene.add.text(250, 130, '选择升级', {
-            fontSize: '30px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ffee44', stroke: '#443300', strokeThickness: 3
+        const title = scene.add.text(250, 120, '// UPGRADE', {
+            fontSize: '30px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textAccent, stroke: '#001a11', strokeThickness: 3
         }).setOrigin(0.5).setDepth(51);
 
-        const sub = scene.add.text(250, 168, 'CHOOSE AN UPGRADE', {
-            fontSize: '11px', fontFamily: 'Arial', fill: '#665500'
+        const sub = scene.add.text(250, 158, 'SELECT ENHANCEMENT', {
+            fontSize: '11px', fontFamily: T.font.family, fill: C.textDim
         }).setOrigin(0.5).setDepth(51);
+
+        // 分隔线
+        const sepGfx = scene.add.graphics().setDepth(51);
+        sepGfx.fillStyle(C.cyan, 0.3);
+        sepGfx.fillRect(100, 176, 300, 1);
 
         this._container = scene.add.container(0, 0).setDepth(51);
         this._container.add([overlay, title, sub]);
 
         // 绘制卡牌（支持 3-4 个选项）
         const TOTAL  = options.length;
-        const CARD_W = TOTAL > 3 ? 110 : 130;
-        const CARD_H = TOTAL > 3 ? 170 : 180;
-        const GAP    = TOTAL > 3 ? 10 : 16;
+        const CARD_W = TOTAL > 3 ? 108 : 130;
+        const CARD_H = TOTAL > 3 ? 180 : 200;
+        const GAP    = TOTAL > 3 ? 8 : 14;
         const startX = 250 - ((TOTAL - 1) * 0.5) * (CARD_W + GAP);
 
         for (let i = 0; i < TOTAL; i++) {
             const opt    = options[i];
             const cx     = startX + i * (CARD_W + GAP);
-            const cy     = 380;
+            const cy     = 385;
             this._makeCard(cx, cy, CARD_W, CARD_H, opt);
         }
     }
@@ -67,38 +75,83 @@ class UpgradePopup {
 
     _makeCard(cx, cy, W, H, option) {
         const scene = this._scene;
+        const T = UITheme;
+        const C = T.colors;
         const x0 = cx - W / 2, y0 = cy - H / 2;
         const accent = this._accentColor(option);
 
+        // 赛博朋克面板
         const gfx = scene.add.graphics().setDepth(52);
         const draw = (hover) => {
             gfx.clear();
+
+            // 辉光层
             if (hover) {
-                gfx.lineStyle(1, accent, 0.3);
-                gfx.strokeRoundedRect(x0 - 4, y0 - 4, W + 8, H + 8, 12);
+                gfx.lineStyle(2, accent, 0.25);
+                gfx.strokeRoundedRect(x0 - 3, y0 - 3, W + 6, H + 6, 8);
             }
-            gfx.fillStyle(hover ? 0x0a1a38 : 0x050e1e, 0.97);
-            gfx.fillRoundedRect(x0, y0, W, H, 10);
-            gfx.lineStyle(1.5, accent, hover ? 0.95 : 0.4);
-            gfx.strokeRoundedRect(x0, y0, W, H, 10);
+
+            // 背景
+            gfx.fillStyle(hover ? C.bgPanelLight : C.bgPanel, 0.96);
+            gfx.fillRoundedRect(x0, y0, W, H, 5);
+
+            // 扫描线纹理
+            gfx.fillStyle(accent, 0.02);
+            for (let sy = y0; sy < y0 + H; sy += 4) {
+                gfx.fillRect(x0, sy, W, 1);
+            }
+
+            // 边框
+            gfx.lineStyle(hover ? 2 : 1.5, accent, hover ? 1.0 : 0.55);
+            gfx.strokeRoundedRect(x0, y0, W, H, 5);
+
+            // 左侧强调条
+            gfx.fillStyle(accent, hover ? 1.0 : 0.5);
+            gfx.fillRect(x0 + 1, y0 + 14, 3, H - 28);
+
+            // 角落装饰
+            const cLen = 8;
+            gfx.lineStyle(1, accent, 0.5);
+            gfx.lineBetween(x0, y0 + cLen, x0 + cLen, y0);
+            gfx.lineBetween(x0 + W - cLen, y0, x0 + W, y0 + cLen);
+            gfx.lineBetween(x0, y0 + H - cLen, x0 + cLen, y0 + H);
+            gfx.lineBetween(x0 + W - cLen, y0 + H, x0 + W, y0 + H - cLen);
+
+            // 顶部装饰线
+            gfx.fillStyle(accent, 0.3);
+            gfx.fillRect(x0 + 12, y0 + 1, W - 24, 1);
         };
         draw(false);
 
+        // 稀有度顶部色带
+        if (option.rarity && option.rarity !== 'common') {
+            const rarityBar = scene.add.graphics().setDepth(53);
+            rarityBar.fillStyle(accent, 0.6);
+            rarityBar.fillRect(x0 + 12, y0 + 2, W - 24, 2);
+        }
+
         // 图标
-        const iconTxt = scene.add.text(cx, y0 + 38, option.icon, {
-            fontSize: '32px'
+        const iconTxt = scene.add.text(cx, y0 + 42, option.icon, {
+            fontSize: '30px'
+        }).setOrigin(0.5).setDepth(53);
+
+        // 类型标签
+        const typeLabel = this._typeLabel(option);
+        const typeTxt = scene.add.text(cx, y0 + 70, typeLabel, {
+            fontSize: '9px', fontFamily: T.font.family,
+            fill: '#' + accent.toString(16).padStart(6, '0')
         }).setOrigin(0.5).setDepth(53);
 
         // 名称（含稀有度标签）
-        const nameTxt = scene.add.text(cx, y0 + 85, option.label + (this._rarityTag(option) || ''), {
-            fontSize: '13px', fontFamily: 'Arial', fontStyle: 'bold',
-            fill: '#ddeeff', wordWrap: { width: W - 12 }, align: 'center'
+        const nameTxt = scene.add.text(cx, y0 + 90, option.label + (this._rarityTag(option) || ''), {
+            fontSize: '12px', fontFamily: T.font.family, fontStyle: 'bold',
+            fill: C.textPrimary, wordWrap: { width: W - 16 }, align: 'center'
         }).setOrigin(0.5, 0).setDepth(53);
 
         // 描述
-        const descTxt = scene.add.text(cx, y0 + 125, option.desc, {
-            fontSize: '11px', fontFamily: 'Arial',
-            fill: '#667799', wordWrap: { width: W - 16 }, align: 'center'
+        const descTxt = scene.add.text(cx, y0 + 130, option.desc, {
+            fontSize: '10px', fontFamily: T.font.family,
+            fill: C.textSecondary, wordWrap: { width: W - 20 }, align: 'center'
         }).setOrigin(0.5, 0).setDepth(53);
 
         const hit = scene.add.rectangle(cx, cy, W, H)
@@ -111,39 +164,45 @@ class UpgradePopup {
         });
         hit.on('pointerout', () => {
             draw(false);
-            nameTxt.setStyle({ fill: '#ddeeff' });
+            nameTxt.setStyle({ fill: C.textPrimary });
         });
         hit.on('pointerdown', () => {
             this.hide();
             if (this._onSelect) this._onSelect(option);
         });
 
-        this._container.add([gfx, iconTxt, nameTxt, descTxt, hit]);
+        this._container.add([gfx, iconTxt, typeTxt, nameTxt, descTxt, hit]);
     }
 
     _accentColor(option) {
-        // 稀有度优先
-        if (option.rarity === 'legendary') return 0xff44ff;
-        if (option.rarity === 'rare')      return 0x44aaff;
-        if (option.rarity === 'uncommon')  return 0x44ff88;
-
-        // 类型次之
-        if (option.type === 'evolveWeapon') return 0xff44ff;
-        if (option.type === 'newWeapon')    return 0x44aaff;
-        if (option.type === 'upgradeWeapon')return 0xffaa22;
-        if (option.type === 'passiveItem')  return 0x44ff88;
+        const C = UITheme.colors;
+        if (option.rarity === 'legendary') return C.purple;
+        if (option.rarity === 'rare')      return C.info;
+        if (option.rarity === 'uncommon')  return C.success;
+        if (option.type === 'evolveWeapon') return C.purple;
+        if (option.type === 'newWeapon')    return C.cyan;
+        if (option.type === 'upgradeWeapon')return C.orange;
+        if (option.type === 'passiveItem')  return C.success;
         switch (option.id) {
-            case 'speed':    return 0x44ffcc;
-            case 'hp':       return 0xff4466;
-            case 'cooldown': return 0xffee44;
-            default:         return 0x6677aa;
+            case 'speed':    return C.cyan;
+            case 'hp':       return C.success;
+            case 'cooldown': return C.warning;
+            default:         return C.info;
         }
     }
 
     _rarityTag(option) {
-        if (option.rarity === 'legendary') return ' [传说]';
-        if (option.rarity === 'rare')      return ' [稀有]';
-        if (option.rarity === 'uncommon')  return ' [优良]';
-        return '';
+        return UITheme.rarity[option.rarity]?.label || '';
+    }
+
+    _typeLabel(option) {
+        switch (option.type) {
+            case 'newWeapon':     return '[ WPN ]';
+            case 'upgradeWeapon': return '[ UPG ]';
+            case 'evolveWeapon':  return '[ EVO ]';
+            case 'passiveItem':   return '[ RELIC ]';
+            case 'stat':          return '[ STAT ]';
+            default:              return '[ SYS ]';
+        }
     }
 }
