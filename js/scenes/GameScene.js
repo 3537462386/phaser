@@ -162,7 +162,7 @@ class GameScene extends Phaser.Scene {
             GameState.run.roundKills = this.roundKills;
 
             // 金币掉落（受遗物修正）
-            const goldByType = { normal: 1, fast: 2, heavy: 3, elite: 8, boss: 25 };
+            const goldByType = { normal: 1, fast: 2, heavy: 3, elite: 8, shooter: 1, seeker: 2, boss: 25 };
             let gold = (goldByType[enemyType] || 1);
             gold = this.passiveItemManager.modifyGold(gold);
             GameState.run.gold += gold;
@@ -216,6 +216,11 @@ class GameScene extends Phaser.Scene {
 
         // Boss 弹幕击中玩家回调
         this._onBossBulletHit = (damage) => {
+            this._applyDamageToPlayer(damage);
+        };
+
+        // shooter 敌人子弹击中玩家回调
+        this.enemyManager.onEnemyBulletHit = (damage) => {
             this._applyDamageToPlayer(damage);
         };
 

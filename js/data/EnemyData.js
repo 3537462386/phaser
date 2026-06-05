@@ -50,5 +50,33 @@ const ENEMY_DATA = {
         tint:          0xff4488,
         spawnWeight:   1,
         goldValue:     8
+    },
+    shooter: {
+        id:            'shooter',
+        hp:            1,
+        speedMin:      0.6,
+        speedMax:      1.2,
+        expValue:      1,
+        contactDamage: 1,
+        scale:         1.0,
+        tint:          0xffff44,
+        spawnWeight:   2,
+        goldValue:     1,
+        fireInterval:  2000,     // 每 2 秒发射一颗子弹
+        bulletSpeed:   3.5,      // 子弹速度
+        bulletDamage:  1         // 子弹伤害
+    },
+    seeker: {
+        id:            'seeker',
+        hp:            1,
+        speedMin:      3.0,
+        speedMax:      5.5,
+        expValue:      2,
+        contactDamage: 1,
+        scale:         0.75,
+        tint:          0xff6644,
+        spawnWeight:   2,
+        goldValue:     2,
+        turnRate:      0.03       // 每帧转向速率（弧度），越大越贴身
     }
 };

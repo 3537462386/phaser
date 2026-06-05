@@ -3,9 +3,9 @@
  *
  * 轮数阶段：
  *   第 1-2 轮 : 仅 normal
- *   第 3-4 轮 : normal + fast
- *   第 5-7 轮 : normal + fast + heavy
- *   第 8 轮+  : fast + heavy（更高密度）
+ *   第 3-4 轮 : normal + fast + shooter
+ *   第 5-7 轮 : normal + fast + heavy + shooter
+ *   第 8 轮+  : fast + heavy + shooter（更高密度）
  *   第 5 轮起  : 每击杀 20 个非精英敌人出现一个 elite
  */
 class WaveManager {
@@ -48,11 +48,11 @@ class WaveManager {
         if (r <= 2) {
             pool = ['normal', 'normal', 'normal'];
         } else if (r <= 4) {
-            pool = ['normal', 'normal', 'fast'];
+            pool = ['normal', 'normal', 'fast', 'shooter', 'seeker'];
         } else if (r <= 7) {
-            pool = ['normal', 'fast', 'heavy'];
+            pool = ['normal', 'fast', 'heavy', 'shooter', 'seeker'];
         } else {
-            pool = ['fast', 'heavy', 'heavy'];
+            pool = ['fast', 'heavy', 'heavy', 'shooter', 'seeker'];
         }
         return pool[Math.floor(Math.random() * pool.length)];
     }

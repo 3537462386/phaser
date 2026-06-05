@@ -6,6 +6,7 @@
  *   - 使用 Phaser 对象池（group.get/maxSize），被击落的敌人直接回收，不做位置"传送"
  *   - increaseDifficulty(level) 根据难度等级收紧间隔、提高速度、放宽同屏上限
  *   - stop() 供游戏结束时调用，停止定时器
+ *   - shooter 类型：进入画面后原地不动，定时向玩家方向发射子弹
  *
  * 难度缩放（level = Math.floor(score / 100)）：
  *   生成间隔  1200ms → 每级 -80ms，最低 350ms
@@ -34,8 +35,14 @@ class EnemyManager {
         this._spawnTimer  = null;
         this._waveManager = null;
 
-        /** 敌人被击杀时的回调：(x, y, expValue) => void */
+        /** 敌人被击杀时的回调：(x, y, expValue, enemyType) => void */
         this.onEnemyKilled = null;
+
+        /** shooter 子弹击中玩家时的回调：(damage) => void */
+        this.onEnemyBulletHit = null;
+
+        /** shooter 子弹对象池 { gfx, x, y, vx, vy, damage, active }[] */
+        this._shooterBullets = [];
     }
 
     /** 绑定 WaveManager，用于决定生成哪种敌人 */
@@ -57,9 +64,58 @@ class EnemyManager {
         const dtScale = deltaSec * 60;
         this.group.children.iterate((enemy) => {
             if (!enemy.active) return;
-            enemy.y += enemy.speed * dtScale;
-            if (enemy.y > 720) this._despawn(enemy);
+
+            // ── shooter 类型：移动到停留位置后原地射击 ─────
+            if (enemy.isShooter) {
+                const stopY = enemy.stopY || 200;
+                if (enemy.y < stopY) {
+                    enemy.y += enemy.speed * dtScale;
+                } else {
+                    if (enemy.body) enemy.body.reset(enemy.x, enemy.y);
+                    enemy.fireTimer = (enemy.fireTimer || 0) - deltaSec * 1000;
+                    if (enemy.fireTimer <= 0) {
+                        this._fireShooterBullet(enemy);
+                        const data = ENEMY_DATA[enemy.enemyType];
+                        enemy.fireTimer = (data ? data.fireInterval : 2000)
+                            + Phaser.Math.Between(-300, 300);
+                    }
+                }
+            } else if (enemy.isSeeker) {
+                // ── seeker 类型：角度偏向玩家移动 ─────────
+                const player = this.scene.player;
+                if (player && player.sprite && player.sprite.active) {
+                    const dx = player.sprite.x - enemy.x;
+                    const dy = player.sprite.y - enemy.y;
+                    const targetAngle = Math.atan2(dy, dx);
+                    // 渐进转向（不直接追踪，有 turnRate 限制）
+                    let seekAngle = enemy._seekAngle;
+                    const tr = enemy._seekTurnRate;
+                    // 角度差最短路径
+                    let angleDiff = targetAngle - seekAngle;
+                    while (angleDiff > Math.PI)  angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    seekAngle += Math.max(-tr, Math.min(tr, angleDiff));
+                    enemy._seekAngle = seekAngle;
+                    enemy.x += Math.cos(seekAngle) * enemy.speed * dtScale;
+                    enemy.y += Math.sin(seekAngle) * enemy.speed * dtScale;
+                } else {
+                    enemy.y += enemy.speed * dtScale;
+                }
+                // 偏航角视觉旋转
+                if (enemy._seekAngle !== undefined) {
+                    enemy.setAngle(Phaser.Math.RadToDeg(enemy._seekAngle) + 90);
+                }
+                if (enemy.body) enemy.body.reset(enemy.x, enemy.y);
+                if (enemy.y > 720 || enemy.x < -30 || enemy.x > 530) this._despawn(enemy);
+            } else {
+                // ── 普通敌人：直向下移 ────────────────
+                enemy.y += enemy.speed * dtScale;
+                if (enemy.y > 720) this._despawn(enemy);
+            }
         });
+
+        // ── 更新 shooter 子弹 ─────────────────────────
+        this._updateShooterBullets(deltaSec);
     }
 
     /** 子弹命中时调用；wasKilled=true 表示是被打死（而非逃跑） */
@@ -89,6 +145,8 @@ class EnemyManager {
             this._spawnTimer.remove(false);
             this._spawnTimer = null;
         }
+        // 清空 shooter 子弹
+        this._clearShooterBullets();
     }
 
     // ─── 私有方法 ──────────────────────────────────────
@@ -133,6 +191,21 @@ class EnemyManager {
         enemy.contactDamage = data ? data.contactDamage : 1;
         enemy.enemyType     = typeId;
 
+        // ── shooter / seeker 专属属性 ──────────
+        enemy.isShooter = (typeId === 'shooter');
+        enemy.isSeeker  = (typeId === 'seeker');
+        enemy.stopY     = enemy.isShooter
+            ? Phaser.Math.Between(80, 300)
+            : 0;
+        enemy.fireTimer = enemy.isShooter
+            ? Phaser.Math.Between(500, 2000)
+            : 0;
+        if (enemy.isSeeker) {
+            // 初始角度：略偏向下方（-PI/2 附近加随机偏移）
+            enemy._seekAngle = -Math.PI / 2 + Phaser.Math.FloatBetween(-0.6, 0.6);
+            enemy._seekTurnRate = data ? (data.turnRate || 0.03) : 0.03;
+        }
+
         if (enemy.body) {
             enemy.body.enable = true;
             enemy.body.reset(x, y);
@@ -140,10 +213,102 @@ class EnemyManager {
         }
     }
 
+    // ── shooter 子弹系统 ────────────────────────────
+
+    /**
+     * 从 shooter 敌人位置发射一颗向下的子弹
+     */
+    _fireShooterBullet(enemy) {
+        if (!enemy || !enemy.active) return;
+        const data = ENEMY_DATA[enemy.enemyType] || { bulletSpeed: 3, bulletDamage: 1 };
+        const bx = enemy.x;
+        const by = enemy.y + 15;
+
+        // 尝试使用播放器相对方向（对准玩家），否则直下
+        const player = this.scene.player;
+        let vx = 0;
+        let vy = data.bulletSpeed;
+        if (player && player.sprite && player.sprite.active) {
+            const dx = player.sprite.x - bx;
+            const dy = player.sprite.y - by;
+            const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+            vx = (dx / dist) * data.bulletSpeed;
+            vy = (dy / dist) * data.bulletSpeed;
+        }
+
+        const gfx = this.scene.add.graphics();
+        gfx.fillStyle(0xffff44, 0.9);
+        gfx.fillCircle(0, 0, 4);
+        gfx.fillStyle(0xffcc00, 0.6);
+        gfx.fillCircle(0, 0, 2);
+        gfx.setPosition(bx, by);
+        gfx.setDepth(5);
+
+        this._shooterBullets.push({
+            gfx, x: bx, y: by, vx, vy,
+            damage: data.bulletDamage,
+            active: true
+        });
+    }
+
+    /**
+     * 每帧更新 shooter 子弹：移动 + 碰撞检测 + 越界清理
+     */
+    _updateShooterBullets(deltaSec) {
+        const dtScale = deltaSec * 60;
+        const player = this.scene.player;
+
+        for (const b of this._shooterBullets) {
+            if (!b.active) continue;
+
+            b.x += b.vx * dtScale;
+            b.y += b.vy * dtScale;
+            b.gfx.setPosition(b.x, b.y);
+
+            // 越界销毁
+            if (b.x < -20 || b.x > 520 || b.y < -20 || b.y > 720) {
+                b.active = false;
+                b.gfx.destroy();
+                continue;
+            }
+
+            // 与玩家碰撞
+            if (player && player.sprite && player.sprite.active) {
+                const dx = b.x - player.sprite.x;
+                const dy = b.y - player.sprite.y;
+                if (Math.sqrt(dx * dx + dy * dy) < 24) {
+                    b.active = false;
+                    b.gfx.destroy();
+                    if (this.onEnemyBulletHit) {
+                        this.onEnemyBulletHit(b.damage);
+                    }
+                }
+            }
+        }
+
+        // 清理不活跃的子弹
+        this._shooterBullets = this._shooterBullets.filter(b => b.active);
+    }
+
+    /** 清空所有 shooter 子弹 */
+    _clearShooterBullets() {
+        for (const b of this._shooterBullets) {
+            if (b.gfx) b.gfx.destroy();
+        }
+        this._shooterBullets = [];
+    }
+
+    // ── 回收 ────────────────────────────────────────
+
     _despawn(enemy) {
         enemy.setActive(false).setVisible(false);
+        enemy.isShooter = false;
+        enemy.isSeeker  = false;
+        enemy.stopY     = 0;
+        enemy.fireTimer = 0;
+        enemy._seekAngle = 0;
+        enemy.setAngle(0);
         // 移出画面，防止 overlap 在本帧仍然触发
         if (enemy.body) enemy.body.reset(-200, -200);
     }
 }
-
