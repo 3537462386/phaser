@@ -194,7 +194,7 @@ class Player {
         if (!anims.exists('explode')) {
             anims.create({
                 key: 'explode',
-                frames: anims.generateFrameNumbers('playerDown', { start: 0, end: 7 }),
+                frames: anims.generateFrameNumbers('playerDown', { start: 0, end: 2 }),
                 frameRate: 15,
                 repeat: 0,
                 hideOnComplete: true

@@ -1,5 +1,9 @@
 class AchievementsScene extends BaseScene {
 
+    constructor() {
+        super({ key: 'AchievementsScene' });
+    }
+
     create() {
         this._initStarfield(90);
         this._drawHeader();

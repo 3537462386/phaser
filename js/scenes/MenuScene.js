@@ -5,6 +5,10 @@
  */
 class MenuScene extends BaseScene {
 
+    constructor() {
+        super({ key: 'MenuScene' });
+    }
+
     create() {
         this._initStarfield(100);
         this._drawGrid();

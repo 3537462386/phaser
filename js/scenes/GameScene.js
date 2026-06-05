@@ -40,13 +40,13 @@ class GameScene extends Phaser.Scene {
         this.load.spritesheet('playerDown', './images/player_down.png', {
             frameWidth: 102,
             frameHeight: 126,
-            endFrame: 3
+            endFrame: 2
         });
         this.load.image('enemy', './images/enemy1.png');
     }
 
-    create() {
-        const data = this.scene.settings.data || {};
+    create(data) {
+        data = data || {};
         const fromInterlude = data.fromInterlude === true;
 
         if (!fromInterlude) {
@@ -78,30 +78,24 @@ class GameScene extends Phaser.Scene {
         this.itemManager     = new ItemManager();
         this.itemManager.create(this);
 
-        // 被动遗物系统
-        this.passiveItemManager = new PassiveItemManager();
-        this.passiveItemManager.create(this, null, null); // 后面绑定 player 和 weaponManager
-
-        // Boss 系统
-        this.bossManager = new BossManager();
-        this.bossManager.create(this, null); // 后面绑定 enemyManager
-
-        // 玩家
+        // 玩家（需先创建，因为其他系统需要引用）
         this.player = new Player(this);
         this.player.create(250, 600, charConfig);
         if (charConfig.tint && charConfig.tint !== 0xffffff) {
             this.player.sprite.setTint(charConfig.tint);
         }
 
-        // 绑定遗物管理器的 player 和 weaponManager 引用
-        this.passiveItemManager.create(this, this.player, null); // weaponManager 后面创建
-
         // 武器
         this.weaponManager = new WeaponManager();
         this.weaponManager.create(this, this.player);
 
-        // 绑定遗物管理器的 weaponManager
-        this.passiveItemManager._weaponMgr = this.weaponManager;
+        // 被动遗物系统
+        this.passiveItemManager = new PassiveItemManager();
+        this.passiveItemManager.create(this, this.player, this.weaponManager);
+
+        // Boss 系统
+        this.bossManager = new BossManager();
+        this.bossManager.create(this, null); // enemyManager 稍后绑定
 
         if (fromInterlude && GameState.run.playerSnapshot) {
             const snap = GameState.run.playerSnapshot;
