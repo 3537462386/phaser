@@ -16,7 +16,7 @@ const config = {
         autoCenter: Phaser.Scale.CENTER_BOTH,
         expandParent: false
     },
-    scene: [MenuScene, GameScene, DarkChessScene]
+    scene: [MenuScene, GameScene, DarkChessScene, NetworkScene]
 };
 
 const game = new Phaser.Game(config);

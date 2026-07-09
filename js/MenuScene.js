@@ -83,7 +83,11 @@ class MenuScene extends Phaser.Scene {
             this.scene.start('DarkChessScene');
         });
 
-        this.createMenuItem(cx, menuStartY + btnGap * 3, btnWidth, btnHeight, '游戏设置', () => {
+        this.createMenuItem(cx, menuStartY + btnGap * 3, btnWidth, btnHeight, '网络联机', () => {
+            this.showNetworkModal();
+        });
+
+        this.createMenuItem(cx, menuStartY + btnGap * 4, btnWidth, btnHeight, '游戏设置', () => {
             this.toggleSettings();
         }, 'settingsBtn');
 
@@ -301,5 +305,67 @@ class MenuScene extends Phaser.Scene {
     setLevel(level) {
         play.level = level;
         this.scene.restart();
+    }
+
+    showNetworkModal() {
+        var self = this;
+        var modal = document.getElementById('network-modal');
+        var input = document.getElementById('room-code-input');
+        var display = document.getElementById('room-code-display');
+        var createBtn = document.getElementById('btn-create-room');
+        var joinBtn = document.getElementById('btn-join-room');
+        var cancelBtn = document.getElementById('btn-cancel-room');
+        var status = document.getElementById('room-status');
+
+        modal.style.display = 'flex';
+        input.style.display = 'block';
+        display.style.display = 'none';
+        input.value = '';
+        status.textContent = '';
+        createBtn.disabled = false;
+        joinBtn.disabled = false;
+
+        createBtn.onclick = async function () {
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            input.style.display = 'none';
+            status.textContent = '正在创建房间...';
+            try {
+                var room = await window.NetworkManager.createRoom('xiangqi', { name: '玩家' });
+                display.textContent = room.id;
+                display.style.display = 'block';
+                status.textContent = '等待对手加入...';
+                room.state.players.onAdd = function () {
+                    if (room.state.players.size === 2) {
+                        self.scene.start('NetworkScene');
+                    }
+                };
+            } catch (e) {
+                status.textContent = '连接失败: ' + (e.message || '无法连接服务器');
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+                input.style.display = 'block';
+            }
+        };
+
+        joinBtn.onclick = async function () {
+            var code = input.value.trim();
+            if (!code) { status.textContent = '请输入房间码'; return; }
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            status.textContent = '正在加入...';
+            try {
+                await window.NetworkManager.joinRoomById(code, { name: '玩家' });
+                self.scene.start('NetworkScene');
+            } catch (e) {
+                status.textContent = '加入失败: ' + (e.message || '房间码无效或房间已满');
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+            }
+        };
+
+        cancelBtn.onclick = function () {
+            modal.style.display = 'none';
+        };
     }
 }
