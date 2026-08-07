@@ -13,204 +13,453 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
+            font-family: 'Microsoft YaHei', sans-serif;
         }
-        #game-container {
-            border: 2px solid #333;
-            border-radius: 4px;
-        }
+        #game-container { border: 2px solid #333; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://unpkg.com/colyseus.js@0.15/dist/colyseus.js"></script>
     <script>
     // ============================================================
     // 常量
     // ============================================================
     const W = 960, H = 540;
-    const GROUND_Y = 480;          // 地面Y坐标
-    const NET_X = W / 2;          // 球网X坐标
-    const NET_TOP = GROUND_Y - 130; // 球网顶部Y
+    const GROUND_Y = 480;
+    const NET_X = W / 2;
+    const NET_TOP = GROUND_Y - 130;
     const GRAVITY = 600;
-    const MAX_SCORE = 7;           // 7分制
+    const MAX_SCORE = 7;
 
-    // 玩家参数
     const PLAYER_SPEED = 280;
     const JUMP_VEL = -420;
-    const SWING_DURATION = 200;    // 挥拍持续 ms
+    const SWING_DURATION = 200;
 
-    // 球参数
     const SHUTTLECOCK_GRAVITY = 350;
     const SHUTTLECOCK_DRAG = 0.998;
+
+    // Colyseus 服务器地址（需要部署 colyseus 服务端）
+    const SERVER_URL = 'ws://localhost:2567';
+
+    // ============================================================
+    // 菜单场景
+    // ============================================================
+    class MenuScene extends Phaser.Scene {
+        constructor() { super('MenuScene'); }
+
+        create() {
+            this.add.rectangle(W/2, H/2, W, H, 0x2d5a27);
+
+            this.add.text(W/2, 100, '火柴人羽毛球', {
+                fontSize: '48px', color: '#ffffff',
+                stroke: '#000', strokeThickness: 6
+            }).setOrigin(0.5);
+
+            this.menuItems = [];
+            this.showMainMenu();
+        }
+
+        clearMenu() {
+            this.menuItems.forEach(obj => obj.destroy());
+            this.menuItems = [];
+        }
+
+        showMainMenu() {
+            this.clearMenu();
+            this.menuItems.push(
+                this.createBtn(W/2, 240, '人机对战', () => {
+                    this.scene.start('GameScene', { mode: 'pve' });
+                }),
+                this.createBtn(W/2, 320, '网络对战', () => {
+                    this.showOnlineMenu();
+                })
+            );
+        }
+
+        showOnlineMenu() {
+            this.clearMenu();
+            this.menuItems.push(
+                this.add.text(W/2, 160, '网络对战', {
+                    fontSize: '32px', color: '#fff',
+                    stroke: '#000', strokeThickness: 4
+                }).setOrigin(0.5),
+
+                this.createBtn(W/2, 260, '创建房间', () => {
+                    this.scene.start('GameScene', { mode: 'online', role: 'host' });
+                }),
+
+                this.createBtn(W/2, 340, '加入房间', () => {
+                    this.showJoinRoom();
+                }),
+
+                this.createBtn(W/2, 440, '返回', () => {
+                    this.showMainMenu();
+                })
+            );
+        }
+
+        showJoinRoom() {
+            this.clearMenu();
+            this.menuItems.push(
+                this.add.text(W/2, 120, '加入房间', {
+                    fontSize: '32px', color: '#fff',
+                    stroke: '#000', strokeThickness: 4
+                }).setOrigin(0.5)
+            );
+
+            let inputBg = this.add.rectangle(W/2, 220, 300, 50, 0x333333)
+                .setStrokeStyle(2, 0x888888);
+            this.menuItems.push(inputBg);
+
+            this.roomInput = '';
+            this.roomInputText = this.add.text(W/2, 220, '请输入房间号', {
+                fontSize: '20px', color: '#888'
+            }).setOrigin(0.5);
+            this.menuItems.push(this.roomInputText);
+
+            this.menuItems.push(
+                this.add.text(W/2, 270, '输入房间号后回车或点击加入', {
+                    fontSize: '13px', color: '#aaa'
+                }).setOrigin(0.5)
+            );
+
+            this.menuItems.push(
+                this.createBtn(W/2, 340, '加入', () => {
+                    let id = this.roomInput.trim();
+                    if (id) {
+                        this.input.keyboard.off('keydown');
+                        this.scene.start('GameScene', { mode: 'online', role: 'join', roomId: id });
+                    }
+                })
+            );
+
+            this.menuItems.push(
+                this.createBtn(W/2, 420, '返回', () => {
+                    this.input.keyboard.off('keydown');
+                    this.showOnlineMenu();
+                })
+            );
+
+            this.input.keyboard.on('keydown', (event) => {
+                if (event.key === 'Backspace') {
+                    this.roomInput = this.roomInput.slice(0, -1);
+                } else if (event.key === 'Enter') {
+                    let id = this.roomInput.trim();
+                    if (id) {
+                        this.input.keyboard.off('keydown');
+                        this.scene.start('GameScene', { mode: 'online', role: 'join', roomId: id });
+                    }
+                    return;
+                } else if (event.key.length === 1) {
+                    this.roomInput += event.key;
+                }
+                this.roomInputText.setText(this.roomInput || '请输入房间号');
+                this.roomInputText.setColor(this.roomInput ? '#fff' : '#888');
+            });
+        }
+
+        createBtn(x, y, label, cb) {
+            let bg = this.add.rectangle(x, y, 220, 50, 0x4a7c59)
+                .setStrokeStyle(2, 0xffffff).setInteractive({ useHandCursor: true });
+            let txt = this.add.text(x, y, label, {
+                fontSize: '22px', color: '#ffffff'
+            }).setOrigin(0.5);
+            bg.on('pointerover', () => { bg.setFillStyle(0x5a9a6e); });
+            bg.on('pointerout', () => { bg.setFillStyle(0x4a7c59); });
+            bg.on('pointerdown', cb);
+            return { destroy() { bg.destroy(); txt.destroy(); } };
+        }
+    }
 
     // ============================================================
     // 主游戏场景
     // ============================================================
     class GameScene extends Phaser.Scene {
-        constructor() {
-            super('GameScene');
+        constructor() { super('GameScene'); }
+
+        init(data) {
+            this.gameMode = data.mode || 'pve';
+            this.role = data.role || 'host';
+            this.roomId = data.roomId || null;
         }
 
         create() {
-            // --- 世界边界 ---
             this.physics.world.setBounds(0, 0, W, GROUND_Y + 10);
-            this.physics.world.gravity.y = 0; // 手动控制重力
+            this.physics.world.gravity.y = 0;
 
-            // --- 场地背景 ---
             this.drawCourt();
+            this.cursors = this.input.keyboard.createCursorKeys();
 
-            // --- 创建玩家(左) 和 CPU(右) ---
+            // 火柴人
             this.player = new Stickman(this, 200, GROUND_Y, false);
-            this.cpu = new Stickman(this, W - 200, GROUND_Y, true);
+            this.opponent = new Stickman(this, W - 200, GROUND_Y, true);
 
-            // --- 创建羽毛球 ---
+            // 羽毛球
             this.shuttle = this.add.circle(0, 0, 5, 0xffffff);
             this.physics.add.existing(this.shuttle);
             this.shuttle.body.setCircle(5);
             this.shuttle.body.setAllowGravity(false);
             this.shuttle.body.setBounce(0.3);
             this.shuttle.visible = false;
-            // 球的速度(手动管理)
             this.shuttleVX = 0;
             this.shuttleVY = 0;
 
-            // --- 输入 ---
-            this.cursors = this.input.keyboard.createCursorKeys();
-
-            // --- 游戏状态 ---
+            // 游戏状态
             this.playerScore = 0;
-            this.cpuScore = 0;
-            this.serving = 'player'; // 'player' | 'cpu'
+            this.opponentScore = 0;
             this.ballInPlay = false;
-            this.ballLastHitBy = null; // 'player' | 'cpu'
+            this.ballLastHitBy = null;
             this.scored = false;
             this.scoreTimer = 0;
             this._lastWinner = 'player';
-            this._scoreReason = ''; // 'land_left' | 'land_right' | 'net' | 'out_left' | 'out_right'
+            this._scoreReason = '';
 
-            // --- 挥拍状态 ---
             this.playerSwingTimer = 0;
-            this.cpuSwingTimer = 0;
+            this.opponentSwingTimer = 0;
 
-            // --- HUD ---
-            this.scoreText = this.add.text(W / 2, 20, '0 : 0', {
-                fontSize: '36px',
-                fontFamily: 'monospace',
-                color: '#ffffff',
-                stroke: '#000000',
-                strokeThickness: 4
+            // HUD
+            this.scoreText = this.add.text(W/2, 20, '0 : 0', {
+                fontSize: '36px', fontFamily: 'monospace',
+                color: '#fff', stroke: '#000', strokeThickness: 4
             }).setOrigin(0.5, 0);
 
-            this.infoText = this.add.text(W / 2, H / 2 - 60, '', {
-                fontSize: '28px',
-                fontFamily: 'monospace',
-                color: '#ffff00',
-                stroke: '#000000',
-                strokeThickness: 3
+            this.infoText = this.add.text(W/2, H/2 - 60, '', {
+                fontSize: '28px', fontFamily: 'monospace',
+                color: '#ff0', stroke: '#000', strokeThickness: 3
             }).setOrigin(0.5).setAlpha(0);
 
-            // --- 发球 ---
+            let modeLabel = this.gameMode === 'pve' ? '人机对战' : '网络对战';
+            this.modeText = this.add.text(10, 10, modeLabel, {
+                fontSize: '14px', color: '#aaa'
+            });
+
+            this.createBackBtn();
+
+            // --- 网络初始化 ---
+            if (this.gameMode === 'online') {
+                this.initNetwork();
+            }
+
+            // 发球
             this.doServe('player');
         }
 
+        // ========================================================
+        // Colyseus 网络
+        // ========================================================
+        async initNetwork() {
+            this.isHost = (this.role === 'host');
+            this.connected = false;
+
+            // 远程对手状态
+            this.remoteX = W - 200;
+            this.remoteY = GROUND_Y;
+            this.remoteOnGround = true;
+            this.remoteSwinging = false;
+
+            // 提示文字
+            this.connText = this.add.text(W/2, H/2, '连接服务器中...', {
+                fontSize: '20px', color: '#ff0',
+                stroke: '#000', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(100);
+
+            this.roomText = this.add.text(W/2, 60, '', {
+                fontSize: '16px', color: '#0f0',
+                stroke: '#000', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(100);
+
+            try {
+                this.client = new Colyseus.Client(SERVER_URL);
+
+                if (this.role === 'host') {
+                    // 创建房间
+                    this.room = await this.client.create('badminton', {});
+                    this.roomText.setText('房间号: ' + this.room.id);
+                    this.connText.setText('等待对手加入...');
+                    this.modeText.setText('网络对战 (主机)');
+                    this.connected = true;
+                } else {
+                    // 加入房间
+                    this.room = await this.client.joinById(this.roomId, {});
+                    this.roomText.setText('已加入房间 ' + this.roomId);
+                    this.connText.setText('已连接! 准备开始...');
+                    this.modeText.setText('网络对战 (客机)');
+                    this.connected = true;
+                    this.time.delayedCall(1500, () => this.connText.setAlpha(0));
+                }
+
+                // 监听对手输入
+                this.room.onMessage('input', (data) => {
+                    this.remoteX = data.x;
+                    this.remoteY = data.y;
+                    this.remoteOnGround = data.onGround;
+                    this.remoteSwinging = data.swinging;
+                });
+
+                // 监听对手离开
+                this.room.onLeave((code) => {
+                    this.connected = false;
+                    this.connText.setText('对手断开连接');
+                    this.connText.setAlpha(1);
+                });
+
+                // Host 连接后隐藏提示
+                if (this.role === 'host') {
+                    this.room.onJoin(() => {
+                        this.connText.setText('已连接! 准备开始...');
+                        this.time.delayedCall(1500, () => this.connText.setAlpha(0));
+                    });
+                }
+
+            } catch (err) {
+                this.connText.setText('连接失败: ' + err.message);
+                console.error(err);
+            }
+        }
+
+        sendInputToServer() {
+            if (!this.connected || !this.room) return;
+            this.room.send('input', {
+                x: this.player.x,
+                y: this.player.y,
+                onGround: this.player.onGround,
+                swinging: this.playerSwingTimer > 0
+            });
+        }
+
+        // ========================================================
+        // 返回按钮
+        // ========================================================
+        createBackBtn() {
+            let btn = this.add.text(W - 10, 10, '返回', {
+                fontSize: '16px', color: '#ccc',
+                stroke: '#000', strokeThickness: 2
+            }).setOrigin(1, 0).setInteractive({ useHandCursor: true }).setDepth(100);
+            btn.on('pointerover', () => btn.setColor('#fff'));
+            btn.on('pointerout', () => btn.setColor('#ccc'));
+            btn.on('pointerdown', () => {
+                if (this.room) this.room.leave();
+                this.scene.start('MenuScene');
+            });
+        }
+
+        // ========================================================
+        // 主循环
+        // ========================================================
         update(time, delta) {
             if (this.scored) {
                 this.scoreTimer -= delta;
                 if (this.scoreTimer <= 0) {
                     this.scored = false;
-                    if (this.playerScore >= MAX_SCORE || this.cpuScore >= MAX_SCORE) {
+                    if (this.playerScore >= MAX_SCORE || this.opponentScore >= MAX_SCORE) {
                         this.showGameOver();
                         return;
                     }
-                    // 上一球获胜方发球
                     this.doServe(this._lastWinner);
                 }
                 return;
             }
 
-            // 更新挥拍计时器
             if (this.playerSwingTimer > 0) this.playerSwingTimer -= delta;
-            if (this.cpuSwingTimer > 0) this.cpuSwingTimer -= delta;
+            if (this.opponentSwingTimer > 0) this.opponentSwingTimer -= delta;
 
-            // --- 输入处理(玩家) ---
+            // 输入处理
             this.handlePlayerInput(delta);
 
-            // --- CPU AI ---
-            this.handleCPUAI(delta);
-
-            // --- 更新羽毛球 ---
-            if (this.ballInPlay) {
-                this.updateShuttle(delta);
+            // 对手逻辑
+            if (this.gameMode === 'pve') {
+                this.handleCPUAI(delta);
+            } else if (this.gameMode === 'online') {
+                this.handleOnlineOpponent(delta);
             }
 
-            // --- 检测得分 ---
-            this.checkScore();
+            // 球物理
+            if (this.gameMode === 'pve' || this.isHost) {
+                if (this.ballInPlay) this.updateShuttle(delta);
+                this.checkScore();
+            }
 
-            // --- 更新绘制 ---
+            // 网络：发送输入（每帧发，只发上下左右，由服务器广播）
+            if (this.gameMode === 'online') {
+                this.sendInputToServer();
+            }
+
+            // 更新绘制
             this.player.update(delta);
-            this.cpu.update(delta);
+            this.opponent.update(delta);
             this.updateScoreDisplay();
         }
 
         // ========================================================
-        // 场地绘制
+        // 在线对手
+        // ========================================================
+        handleOnlineOpponent(delta) {
+            // Host 端：根据对手发来的 input 驱动对手
+            // Guest 端：对手位置由 Host 广播（这里简化，双方各自根据收到的 input 更新）
+            if (this.isHost) {
+                let opp = this.opponent;
+                opp.x = this.remoteX;
+                opp.y = this.remoteY;
+                opp.onGround = this.remoteOnGround;
+
+                if (this.remoteSwinging) {
+                    this.opponentSwingTimer = SWING_DURATION;
+                    this.tryHitBall('opponent');
+                }
+            } else {
+                // Guest 端：仅更新对手位置（球物理由 Host 管）
+                let opp = this.opponent;
+                opp.x = this.remoteX;
+                opp.y = this.remoteY;
+                opp.onGround = this.remoteOnGround;
+
+                if (this.remoteSwinging) {
+                    this.opponentSwingTimer = SWING_DURATION;
+                }
+            }
+        }
+
+        // ========================================================
+        // 场地
         // ========================================================
         drawCourt() {
             let g = this.add.graphics();
-
-            // 背景
             g.fillStyle(0x2d5a27, 1);
             g.fillRect(0, 0, W, GROUND_Y);
-
-            // 地面
             g.fillStyle(0x8b4513, 1);
             g.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-
-            // 场地边线
             g.lineStyle(3, 0xffffff, 0.8);
             g.strokeRect(30, 30, W - 60, GROUND_Y - 60);
-
-            // 中线
             g.lineStyle(2, 0xffffff, 0.5);
             g.lineBetween(NET_X, 30, NET_X, GROUND_Y - 30);
-
-            // 球网
             g.lineStyle(3, 0xcccccc, 0.9);
             g.lineBetween(NET_X, NET_TOP, NET_X, GROUND_Y);
-            // 球网横杆
             g.lineStyle(4, 0xffffff, 1);
             g.lineBetween(NET_X - 15, NET_TOP, NET_X + 15, NET_TOP);
-
-            // 发球线(装饰)
             g.lineStyle(1, 0xffffff, 0.3);
             g.lineBetween(180, 30, 180, GROUND_Y - 30);
             g.lineBetween(W - 180, 30, W - 180, GROUND_Y - 30);
         }
 
         // ========================================================
-        // 玩家输入
+        // 输入
         // ========================================================
         handlePlayerInput(delta) {
             let p = this.player;
             if (!p.active) return;
 
-            // 左右移动
-            if (this.cursors.left.isDown) {
-                p.vx = -PLAYER_SPEED;
-            } else if (this.cursors.right.isDown) {
-                p.vx = PLAYER_SPEED;
-            } else {
-                p.vx = 0;
-            }
+            if (this.cursors.left.isDown) p.vx = -PLAYER_SPEED;
+            else if (this.cursors.right.isDown) p.vx = PLAYER_SPEED;
+            else p.vx = 0;
 
-            // 跳跃
             if (this.cursors.up.isDown && p.onGround) {
                 p.vy = JUMP_VEL;
                 p.onGround = false;
             }
 
-            // 挥拍 (下键)
             if (this.cursors.down.isDown && this.playerSwingTimer <= 0) {
                 this.playerSwingTimer = SWING_DURATION;
                 this.tryHitBall('player');
@@ -221,61 +470,43 @@
         // CPU AI
         // ========================================================
         handleCPUAI(delta) {
-            let cpu = this.cpu;
+            let cpu = this.opponent;
             if (!cpu.active) return;
 
             let targetX = cpu.x;
-
             if (this.ballInPlay) {
-                // 预测球落点X
                 let ballX = this.shuttle.x;
                 targetX = ballX;
-                // 简单预判：如果球飞向CPU半场，移动到落点附近
                 if (this.shuttleVX > 0 && ballX > NET_X) {
-                    // 球正在飞向CPU半场
                     let predX = this.predictLandX();
-                    if (predX > NET_X + 30 && predX < W - 30) {
-                        targetX = predX;
-                    }
+                    if (predX > NET_X + 30 && predX < W - 30) targetX = predX;
                 } else if (ballX > NET_X + 100) {
                     targetX = ballX;
                 } else {
-                    // 球在对方半场，回中
                     targetX = W - 200;
                 }
             } else {
-                // 没球时回到位置
                 targetX = W - 200;
             }
 
-            // 限制移动范围
             targetX = Phaser.Math.Clamp(targetX, NET_X + 40, W - 40);
-
-            // 向目标移动
             let dx = targetX - cpu.x;
-            if (Math.abs(dx) > 15) {
-                cpu.vx = Math.sign(dx) * PLAYER_SPEED * 0.85;
-            } else {
-                cpu.vx = 0;
-            }
+            cpu.vx = Math.abs(dx) > 15 ? Math.sign(dx) * PLAYER_SPEED * 0.85 : 0;
 
-            // 自动跳跃(球靠近时)
             if (this.ballInPlay && this.shuttleVX > 0) {
                 let dist = Math.abs(this.shuttle.x - cpu.x);
-                let ballAbove = this.shuttle.y < GROUND_Y - 60;
-                if (dist < 120 && ballAbove && cpu.onGround) {
+                if (dist < 120 && this.shuttle.y < GROUND_Y - 60 && cpu.onGround) {
                     cpu.vy = JUMP_VEL;
                     cpu.onGround = false;
                 }
             }
 
-            // 自动挥拍
-            if (this.ballInPlay && this.cpuSwingTimer <= 0) {
+            if (this.ballInPlay && this.opponentSwingTimer <= 0) {
                 let dist = Math.abs(this.shuttle.x - cpu.x);
                 let hDist = Math.abs(this.shuttle.y - cpu.y);
                 if (dist < 90 && hDist < 100 && this.shuttle.x > NET_X) {
-                    this.cpuSwingTimer = SWING_DURATION;
-                    this.tryHitBall('cpu');
+                    this.opponentSwingTimer = SWING_DURATION;
+                    this.tryHitBall('opponent');
                 }
             }
         }
@@ -284,18 +515,12 @@
         // 预测落点
         // ========================================================
         predictLandX() {
-            let sx = this.shuttle.x;
-            let sy = this.shuttle.y;
-            let vx = this.shuttleVX;
-            let vy = this.shuttleVY;
-            let g = SHUTTLECOCK_GRAVITY;
-
-            // 模拟直到触地
-            let t = 0;
+            let sx = this.shuttle.x, sy = this.shuttle.y;
+            let vx = this.shuttleVX, vy = this.shuttleVY;
             let px = sx, py = sy;
             let dt = 1 / 60;
             for (let i = 0; i < 300; i++) {
-                vy += g * dt;
+                vy += SHUTTLECOCK_GRAVITY * dt;
                 px += vx * dt;
                 py += vy * dt;
                 vx *= SHUTTLECOCK_DRAG;
@@ -305,103 +530,76 @@
         }
 
         // ========================================================
-        // 羽毛球更新
+        // 球物理
         // ========================================================
         updateShuttle(delta) {
             let dt = delta / 1000;
-
-            // 重力
             this.shuttleVY += SHUTTLECOCK_GRAVITY * dt;
-
-            // 空气阻力
             this.shuttleVX *= SHUTTLECOCK_DRAG;
             this.shuttleVY *= SHUTTLECOCK_DRAG;
-
-            // 更新位置
             this.shuttle.x += this.shuttleVX * dt;
             this.shuttle.y += this.shuttleVY * dt;
 
-            let prevBallInPlay = this.ballInPlay;
-
-            // 触地
             if (this.shuttle.y >= GROUND_Y) {
                 this.shuttle.y = GROUND_Y;
                 this.ballInPlay = false;
                 this.shuttle.visible = false;
                 this._scoreReason = this.shuttle.x < NET_X ? 'land_left' : 'land_right';
-            }
-            // 出界(左右)
-            else if (this.shuttle.x < 25) {
+            } else if (this.shuttle.x < 25) {
                 this.ballInPlay = false;
                 this.shuttle.visible = false;
                 this._scoreReason = 'out_left';
-            }
-            else if (this.shuttle.x > W - 25) {
+            } else if (this.shuttle.x > W - 25) {
                 this.ballInPlay = false;
                 this.shuttle.visible = false;
                 this._scoreReason = 'out_right';
-            }
-            // 触网
-            else if (Math.abs(this.shuttle.x - NET_X) < 8 && this.shuttle.y > NET_TOP && this.shuttle.y < GROUND_Y) {
+            } else if (Math.abs(this.shuttle.x - NET_X) < 8 && this.shuttle.y > NET_TOP && this.shuttle.y < GROUND_Y) {
                 this.ballInPlay = false;
                 this.shuttle.visible = false;
                 this._scoreReason = 'net';
             }
 
-            // 更新物理体位置
             this.shuttle.body.reset(this.shuttle.x, this.shuttle.y);
         }
 
         // ========================================================
-        // 击球逻辑
+        // 击球
         // ========================================================
         tryHitBall(hitter) {
             if (!this.ballInPlay) return;
 
-            let stickman = hitter === 'player' ? this.player : this.cpu;
+            let stickman = hitter === 'player' ? this.player : this.opponent;
             let dx = this.shuttle.x - stickman.x;
             let dy = this.shuttle.y - stickman.y;
 
-            // 击球范围
-            let hitRange = 90;
-            let hitHeight = 110;
-            if (Math.abs(dx) < hitRange && Math.abs(dy) < hitHeight) {
+            if (Math.abs(dx) < 90 && Math.abs(dy) < 110) {
                 this.ballLastHitBy = hitter;
-
-                // 根据球相对位置决定回球方向和力度
-                let baseSpeed = 400;
-                let angle = 0;
+                let baseSpeed = 400, angle = 0;
 
                 if (dy < -30) {
-                    // 球在上方 → 扣杀
-                    angle = hitter === 'player' ? 0.3 : Math.PI - 0.3;
+                    angle = (hitter === 'player') ? 0.3 : Math.PI - 0.3;
                     baseSpeed = 550;
                 } else if (dy > 30) {
-                    // 球在下方 → 高球
-                    angle = hitter === 'player' ? -0.5 : Math.PI + 0.5;
+                    angle = (hitter === 'player') ? -0.5 : Math.PI + 0.5;
                     baseSpeed = 350;
                 } else {
-                    // 平抽
-                    angle = hitter === 'player' ? 0.1 : Math.PI - 0.1;
+                    angle = (hitter === 'player') ? 0.1 : Math.PI - 0.1;
                     baseSpeed = 420;
                 }
 
                 this.shuttleVX = Math.cos(angle) * baseSpeed;
                 this.shuttleVY = Math.sin(angle) * baseSpeed;
 
-                // 保证球飞向对方半场
                 if (hitter === 'player' && this.shuttleVX < 100) this.shuttleVX = 200;
-                if (hitter === 'cpu' && this.shuttleVX > -100) this.shuttleVX = -200;
+                if (hitter === 'opponent' && this.shuttleVX > -100) this.shuttleVX = -200;
             }
         }
 
         // ========================================================
-        // 得分检测
+        // 得分
         // ========================================================
         checkScore() {
-            if (this.ballInPlay) return;
-            if (this.scored) return;
-
+            if (this.ballInPlay || this.scored) return;
             let reason = this._scoreReason;
             if (!reason) return;
 
@@ -409,37 +607,27 @@
             this.scoreTimer = 1200;
             this._scoreReason = '';
 
-            let playerGetsPoint = false;
-            let msg = '';
+            let playerGetsPoint = false, msg = '';
 
             if (reason === 'land_left') {
-                // 球在左半场(玩家半场)落地 → CPU得分
-                playerGetsPoint = false;
-                msg = '对手得分!';
+                playerGetsPoint = false; msg = '对手得分!';
             } else if (reason === 'land_right') {
-                // 球在右半场(CPU半场)落地 → 玩家得分
-                playerGetsPoint = true;
-                msg = '得分!';
+                playerGetsPoint = true; msg = '得分!';
             } else if (reason === 'net') {
-                // 触网：最后击球方失分
-                playerGetsPoint = (this.ballLastHitBy === 'cpu');
+                playerGetsPoint = (this.ballLastHitBy === 'opponent' || this.ballLastHitBy === 'cpu');
                 msg = '触网!';
             } else if (reason === 'out_left') {
-                // 出左边界 → CPU得分
-                playerGetsPoint = false;
-                msg = '出界!';
+                playerGetsPoint = false; msg = '出界!';
             } else if (reason === 'out_right') {
-                // 出右边界 → 玩家得分
-                playerGetsPoint = true;
-                msg = '出界!';
+                playerGetsPoint = true; msg = '出界!';
             }
 
             if (playerGetsPoint) {
                 this.playerScore++;
                 this._lastWinner = 'player';
             } else {
-                this.cpuScore++;
-                this._lastWinner = 'cpu';
+                this.opponentScore++;
+                this._lastWinner = 'opponent';
             }
 
             this.showInfo(msg);
@@ -449,20 +637,16 @@
         // 发球
         // ========================================================
         doServe(server) {
-            this.serving = server;
-            this.ballLastHitBy = server === 'player' ? 'cpu' : 'player'; // 对方"击球"
-
+            this.ballLastHitBy = (server === 'player') ? 'opponent' : 'player';
             let sx, sy, vx, vy;
             if (server === 'player') {
                 sx = this.player.x + 20;
                 sy = this.player.y - 40;
-                vx = 350;
-                vy = -250;
+                vx = 350; vy = -250;
             } else {
-                sx = this.cpu.x - 20;
-                sy = this.cpu.y - 40;
-                vx = -350;
-                vy = -250;
+                sx = this.opponent.x - 20;
+                sy = this.opponent.y - 40;
+                vx = -350; vy = -250;
             }
 
             this.shuttle.x = sx;
@@ -478,9 +662,8 @@
         // UI
         // ========================================================
         updateScoreDisplay() {
-            this.scoreText.setText(this.playerScore + ' : ' + this.cpuScore);
-            // 比分颜色提示
-            if (this.playerScore >= MAX_SCORE - 1 || this.cpuScore >= MAX_SCORE - 1) {
+            this.scoreText.setText(this.playerScore + ' : ' + this.opponentScore);
+            if (this.playerScore >= MAX_SCORE - 1 || this.opponentScore >= MAX_SCORE - 1) {
                 this.scoreText.setColor('#ff4444');
             }
         }
@@ -489,26 +672,18 @@
             this.infoText.setText(msg);
             this.infoText.setAlpha(1);
             this.time.delayedCall(800, () => {
-                this.tweens.add({
-                    targets: this.infoText,
-                    alpha: 0,
-                    duration: 400
-                });
+                this.tweens.add({ targets: this.infoText, alpha: 0, duration: 400 });
             });
         }
 
         showGameOver() {
-            let winner = this.playerScore >= MAX_SCORE ? '玩家获胜!' : 'CPU获胜!';
+            let winner = this.playerScore >= MAX_SCORE ? '玩家获胜!' : '对手获胜!';
             this.infoText.setText(winner);
             this.infoText.setAlpha(1);
             this.infoText.setColor('#ffff00');
             this.ballInPlay = false;
             this.shuttle.visible = false;
-
-            // 几秒后重新开始
-            this.time.delayedCall(3000, () => {
-                this.scene.restart();
-            });
+            this.time.delayedCall(3000, () => this.scene.start('MenuScene'));
         }
     }
 
@@ -525,114 +700,71 @@
             this.onGround = true;
             this.facingLeft = facingLeft;
             this.active = true;
-
-            // 挥拍动画
-            this.swingAngle = 0;
-            this.isSwinging = false;
-
-            // 绘制用 Graphics
             this.gfx = scene.add.graphics();
             this.gfx.setDepth(10);
         }
 
         update(delta) {
             let dt = delta / 1000;
-
-            // 水平移动
             this.x += this.vx * dt;
-            // 限制在场内
             let minX = this.facingLeft ? 50 : NET_X + 50;
             let maxX = this.facingLeft ? NET_X - 50 : W - 50;
             this.x = Phaser.Math.Clamp(this.x, minX, maxX);
 
-            // 垂直运动(重力 + 跳跃)
-            if (!this.onGround) {
-                this.vy += GRAVITY * dt;
-            }
+            if (!this.onGround) this.vy += GRAVITY * dt;
             this.y += this.vy * dt;
-            if (this.y >= GROUND_Y) {
-                this.y = GROUND_Y;
-                this.vy = 0;
-                this.onGround = true;
-            }
-
-            // 绘制
+            if (this.y >= GROUND_Y) { this.y = GROUND_Y; this.vy = 0; this.onGround = true; }
             this.draw();
         }
 
         draw() {
             let g = this.gfx;
             g.clear();
-
-            let x = this.x;
-            let y = this.y;
+            let x = this.x, y = this.y;
             let dir = this.facingLeft ? -1 : 1;
-            let headR = 12;
-            let bodyLen = 30;
-            let limbLen = 22;
+            let headR = 12, bodyLen = 30, limbLen = 22;
 
-            // 挥拍动画角度
             let swingExtra = 0;
             let isSw = (this === this.scene.player && this.scene.playerSwingTimer > 0) ||
-                       (this === this.scene.cpu && this.scene.cpuSwingTimer > 0);
-            if (isSw) {
-                swingExtra = dir * 0.8;
-            }
+                       (this === this.scene.opponent && this.scene.opponentSwingTimer > 0);
+            if (isSw) swingExtra = dir * 0.8;
 
             g.lineStyle(3, 0x000000, 1);
-
-            // 头
             g.strokeCircle(x, y - bodyLen - headR - 5, headR);
-
-            // 身体
             g.lineBetween(x, y - bodyLen, x, y);
-
-            // 腿
             let legSpread = this.onGround ? 8 : 12;
             g.lineBetween(x, y, x - legSpread, y + 15);
             g.lineBetween(x, y, x + legSpread, y + 15);
 
-            // 手臂(左)
             let armAngleL = -0.4;
             g.lineBetween(x, y - bodyLen + 8,
                 x + Math.cos(armAngleL) * limbLen * dir,
                 y - bodyLen + 8 + Math.sin(armAngleL) * limbLen);
 
-            // 手臂(右) - 持拍手
             let armAngleR = 0.6 + swingExtra;
             let armEndX = x + Math.cos(armAngleR) * limbLen * dir;
             let armEndY = y - bodyLen + 8 + Math.sin(armAngleR) * limbLen;
             g.lineBetween(x, y - bodyLen + 8, armEndX, armEndY);
 
-            // 球拍
             let racketLen = 18;
             let racketHeadX = armEndX + Math.cos(armAngleR + 0.3) * racketLen * dir;
             let racketHeadY = armEndY + Math.sin(armAngleR + 0.3) * racketLen;
             g.lineStyle(2, 0x000000, 1);
             g.lineBetween(armEndX, armEndY, racketHeadX, racketHeadY);
-            // 拍头椭圆
-            g.lineStyle(2, 0x000000, 1);
             g.strokeEllipse(racketHeadX + dir * 6, racketHeadY, 14, 10);
         }
     }
 
     // ============================================================
-    // 启动游戏
+    // 启动
     // ============================================================
     const config = {
         type: Phaser.AUTO,
-        width: W,
-        height: H,
+        width: W, height: H,
         parent: 'game-container',
         backgroundColor: '#2d5a27',
-        physics: {
-            default: 'arcade',
-            arcade: {
-                gravity: { y: 0 },
-                debug: false
-            }
-        },
-        scene: [GameScene]
+        physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+        scene: [MenuScene, GameScene]
     };
 
     const game = new Phaser.Game(config);
